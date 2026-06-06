@@ -504,9 +504,20 @@ async function addEntry(){
   showToast('Lançamento salvo!');
 }
 
-function removeEntry(id){
+async function removeEntry(id){
+  const entry = entries.find(e=>e.id===id);
+  if(!entry) return;
   entries = entries.filter(e=>e.id!==id);
   renderEntries(); updateKPIs();
+  try {
+    await fetch(SHEET_URL, {
+      method:'POST',
+      mode:'no-cors',
+      body: JSON.stringify({action:'delete', desc:entry.desc, date:entry.date, val:entry.val}),
+      headers:{'Content-Type':'text/plain'}
+    });
+    showToast('Lançamento removido');
+  } catch(err){ console.error('Delete error:',err); }
 }
 
 function renderEntries(){
