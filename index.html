@@ -485,11 +485,7 @@
         <div class="card" style="margin-bottom:16px">
           <div class="lbl" style="margin-bottom:12px">Como funciona</div>
           <p style="font-size:13px;color:var(--tx2);line-height:1.7">
-            Digite o nome do cliente, clique em <strong style="color:var(--tx)">Gerar Plano</strong> e o sistema vai:<br>
-            1. Buscar a transcrição "Reunião de alinhamento com [cliente]" no Drive<br>
-            2. Ler o conteúdo e gerar o plano estratégico completo com IA<br>
-            3. Criar a pasta <strong style="color:var(--or)">[CLIENTE] | AVENTUS</strong> no Drive<br>
-            4. Salvar o plano e retornar o link direto
+            Digite o nome do cliente e clique em <strong style="color:var(--tx)">Gerar Plano</strong>. Uma janela vai abrir brevemente para autenticação — pode fechar depois. O plano será gerado e salvo no Drive automaticamente.
           </p>
         </div>
         <div class="card">
@@ -1033,6 +1029,7 @@ function exportCSV(){
 
 
 // ── PLANOS DE AÇÃO ────────────────────────────────────
+const ANTHROPIC_KEY = window.ANTHROPIC_KEY || '';
 let planosHistorico = [];
 
 async function gerarPlano(){
@@ -1041,51 +1038,99 @@ async function gerarPlano(){
 
   const btn = document.getElementById('btnPlano');
   btn.textContent = 'Gerando...'; btn.disabled = true;
-
   document.getElementById('planoStatus').style.display = 'block';
   document.getElementById('planoLoading').style.display = 'block';
   document.getElementById('planoResultado').style.display = 'none';
   document.getElementById('planoErro').style.display = 'none';
 
-  // Animate progress bar
-  const msgs = [
-    'Buscando transcrição no Drive...',
-    'Lendo reunião de alinhamento...',
-    'Gerando plano estratégico com IA...',
-    'Criando pasta no Drive...',
-    'Salvando documento...'
-  ];
+  const msgs = ['Buscando transcrição no Drive...','Lendo reunião de alinhamento...','Gerando plano com IA...','Salvando no Drive...'];
   let msgIdx = 0;
   const bar = document.getElementById('planoProgressBar');
   const msgEl = document.getElementById('planoLoadingMsg');
-  const interval = setInterval(() => {
-    msgIdx = Math.min(msgIdx + 1, msgs.length - 1);
-    msgEl.textContent = msgs[msgIdx];
-    bar.style.width = ((msgIdx+1) / msgs.length * 85) + '%';
-  }, 8000);
+  bar.style.width = '10%';
+  msgEl.textContent = msgs[0];
 
   try {
-    const res = await fetch(SHEET_URL + '?action=plano&cliente=' + encodeURIComponent(cliente), {
-      redirect: 'follow'
+    // 1. Buscar transcrição via Apps Script
+    msgEl.textContent = msgs[0]; bar.style.width = '20%';
+    const r1 = await fetch(SHEET_URL + '?action=getTranscricao&cliente=' + encodeURIComponent(cliente), {redirect:'follow'});
+    const d1 = await r1.json();
+    if(!d1.ok) throw new Error('Transcrição não encontrada para: ' + cliente);
+
+    // 2. Gerar plano com Claude direto do browser
+    msgEl.textContent = msgs[2]; bar.style.width = '50%';
+    const prompt = `Você é um estrategista de marketing digital da Aventus, agência premium.
+
+Com base na transcrição da reunião de alinhamento com o cliente abaixo, gere um Plano Estratégico completo em HTML.
+
+CLIENTE: ${cliente}
+DATA: ${new Date().toLocaleDateString('pt-BR', {month:'long', year:'numeric'})}
+
+TRANSCRIÇÃO:
+${d1.texto.substring(0, 12000)}
+
+INSTRUÇÕES:
+- Gere um HTML completo e autossuficiente (com CSS interno)
+- Siga EXATAMENTE esta estrutura:
+  1. HERO — nome do cliente em destaque, área de atuação, data
+  2. O CENÁRIO — problema principal identificado na reunião
+  3. TESE CENTRAL — frase de posicionamento em destaque (blockquote)
+  4. NÚMEROS — 4 métricas relevantes do cliente
+  5. POSICIONAMENTO — identidade, missão e visão
+  6. 3 PILARES ESTRATÉGICOS
+  7. 3 CRIATIVOS DE TRÁFEGO — roteiros completos com duração em segundos
+  8. CRONOGRAMA — 4 semanas (4 posts/semana: Reel, Edu, Feed, Story)
+  9. REFERÊNCIAS DE MERCADO — 3 concorrentes analisados
+  10. 90 DIAS — Fundação (1-30), Ativação (31-60), Aceleração (61-90)
+  11. FOOTER — logo AVENTUS, contato
+
+ESTILO: fundo preto #0a0a0a, laranja #FF6B00, texto #e0e0e0, font system-ui.
+Retorne APENAS o HTML completo, sem markdown, sem backticks.`;
+
+    const r2 = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 8000,
+        messages: [{role:'user', content: prompt}]
+      })
     });
-    const data = await res.json();
+    const d2 = await r2.json();
+    if(d2.error) throw new Error(d2.error.message);
+    const html = d2.content[0].text;
 
-    clearInterval(interval);
+    // 3. Salvar no Drive via Apps Script POST
+    msgEl.textContent = msgs[3]; bar.style.width = '85%';
+    const r3 = await fetch(SHEET_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: JSON.stringify({action:'salvarPlano', cliente, html}),
+      headers: {'Content-Type':'text/plain'}
+    });
+
+    // 4. Buscar link da pasta
+    await new Promise(res => setTimeout(res, 2000));
+    const r4 = await fetch(SHEET_URL + '?action=getTranscricao&cliente=__link__' + encodeURIComponent(cliente), {redirect:'follow'});
+
     bar.style.width = '100%';
+    document.getElementById('planoLoading').style.display = 'none';
+    document.getElementById('planoResultado').style.display = 'block';
 
-    if(data.ok){
-      document.getElementById('planoLoading').style.display = 'none';
-      document.getElementById('planoResultado').style.display = 'block';
-      document.getElementById('planoLink').href = data.link;
-      planosHistorico.unshift({cliente, data: new Date().toLocaleDateString('pt-BR'), link: data.link});
-      renderPlanoHistorico();
-      showToast('Plano de ' + cliente + ' gerado!');
-      document.getElementById('planoCliente').value = '';
-    } else {
-      throw new Error(data.erro || 'Erro desconhecido');
-    }
+    // Link temporário — abre o Drive
+    const driveLink = 'https://drive.google.com/drive/search?q=' + encodeURIComponent(cliente + ' AVENTUS');
+    document.getElementById('planoLink').href = driveLink;
+
+    planosHistorico.unshift({cliente, data: new Date().toLocaleDateString('pt-BR'), link: driveLink});
+    renderPlanoHistorico();
+    showToast('Plano de ' + cliente + ' gerado e salvo!');
+    document.getElementById('planoCliente').value = '';
+
   } catch(err){
-    clearInterval(interval);
     document.getElementById('planoLoading').style.display = 'none';
     document.getElementById('planoErro').style.display = 'block';
     document.getElementById('planoErroMsg').textContent = err.message;
