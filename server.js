@@ -2,20 +2,18 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const url = require('url');
 
 const PORT = process.env.PORT || 3000;
-const ANTHROPIC_KEY = process.env.ANTHROPIC_KEY || '';
+const ANTHROPIC_KEY = (process.env.ANTHROPIC_KEY || '').trim();
+
+console.log('ANTHROPIC_KEY carregada:', ANTHROPIC_KEY ? 'SIM (' + ANTHROPIC_KEY.length + ' chars)' : 'NAO');
 
 http.createServer((req, res) => {
-  // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
-  // Endpoint: gerar plano com Claude
   if (req.method === 'POST' && req.url === '/gerar-plano') {
     let body = '';
     req.on('data', chunk => body += chunk);
@@ -39,6 +37,8 @@ http.createServer((req, res) => {
             'Content-Length': Buffer.byteLength(payload)
           }
         };
+
+        console.log('Chamando Claude API com chave:', ANTHROPIC_KEY.substring(0,20) + '...');
 
         const apiReq = https.request(options, apiRes => {
           let data = '';
@@ -64,7 +64,6 @@ http.createServer((req, res) => {
     return;
   }
 
-  // Serve index.html com chave injetada
   const filePath = path.join(__dirname, 'index.html');
   fs.readFile(filePath, 'utf8', (err, data) => {
     if (err) { res.writeHead(500); res.end('Erro'); return; }
