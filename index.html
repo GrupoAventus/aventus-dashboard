@@ -158,11 +158,20 @@
     ::-webkit-scrollbar{width:3px;height:3px}
     ::-webkit-scrollbar-thumb{background:#222;border-radius:3px}
 
+    /* MOBILE MENU */
+    .hamburger{display:none;background:none;border:1px solid var(--bd);border-radius:6px;color:var(--tx);font-size:16px;padding:5px 10px;cursor:pointer;line-height:1}
+    .mobile-overlay{display:none;position:fixed;inset:0;background:#000a;z-index:40}
+    .mobile-overlay.show{display:block}
+    .mobile-menu{position:fixed;top:0;left:0;bottom:0;width:240px;background:var(--bg2);border-right:1px solid var(--bd);z-index:50;transform:translateX(-100%);transition:transform .25s ease;overflow-y:auto}
+    .mobile-menu.show{transform:translateX(0)}
+
     @media(max-width:860px){
       .app{grid-template-columns:1fr}.sidebar{display:none}
+      .hamburger{display:block}
       .g4,.g-kpi{grid-template-columns:repeat(2,1fr)}
       .g3{grid-template-columns:repeat(2,1fr)}
       .form-row{grid-template-columns:1fr 1fr}
+      .topbar-right .date-badge{display:none}
     }
   </style>
 </head>
@@ -194,6 +203,7 @@
   <main class="main">
     <div class="topbar">
       <div class="topbar-left">
+        <button class="hamburger" id="hamburger" onclick="toggleMobileMenu()">☰</button>
         <div class="page-title" id="pageTitle">Dashboard</div>
         <span class="badge" id="monthBadge">JUNHO 2025</span>
       </div>
@@ -204,6 +214,27 @@
       </div>
     </div>
 
+    <!-- MOBILE MENU -->
+    <div class="mobile-overlay" id="mobileOverlay" onclick="toggleMobileMenu()"></div>
+    <div class="mobile-menu" id="mobileMenu">
+      <div style="padding:16px 20px 12px;border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700">AVENTUS<span style="color:var(--or)">.</span></div>
+        <button onclick="toggleMobileMenu()" style="background:none;border:none;color:var(--tx2);font-size:20px;cursor:pointer">✕</button>
+      </div>
+      <div style="padding:10px 10px">
+        <div class="nav-group">Principal</div>
+        <button class="nav-btn" onclick="nav('dashboard',this);toggleMobileMenu()"><span class="nav-icon">▦</span>Dashboard</button>
+        <button class="nav-btn" onclick="nav('lancamentos',this);toggleMobileMenu()"><span class="nav-icon">✎</span>Lançamentos</button>
+        <div class="nav-group">Gestão</div>
+        <button class="nav-btn" onclick="nav('receber',this);toggleMobileMenu()"><span class="nav-icon">◎</span>A Receber</button>
+        <button class="nav-btn" onclick="nav('fixas',this);toggleMobileMenu()"><span class="nav-icon">📌</span>Contas Fixas</button>
+        <div class="nav-group">Carteiras</div>
+        <button class="nav-btn" onclick="nav('squad1',this);toggleMobileMenu()"><span class="nav-icon">◈</span>Squad 1</button>
+        <button class="nav-btn" onclick="nav('squad2',this);toggleMobileMenu()"><span class="nav-icon">◈</span>Squad 2</button>
+        <button class="nav-btn" onclick="nav('nexus',this);toggleMobileMenu()"><span class="nav-icon">⚡</span>Nexus</button>
+      </div>
+    </div>
+
     <div class="content">
 
       <!-- ── DASHBOARD ── -->
@@ -211,9 +242,9 @@
 
         <div class="sec-title">KPIs Principais</div>
         <div class="g-kpi">
-          <div class="card hero">
+          <div class="card ok">
             <div class="lbl">Saldo Bruto</div>
-            <div class="val or" id="k-saldo">R$ 0,00</div>
+            <div class="val gr" id="k-saldo">R$ 0,00</div>
             <div class="sub">Caixa + entradas − saídas</div>
           </div>
           <div class="card yw">
@@ -266,9 +297,9 @@
             <div class="val sm" id="k-caixa">R$ 22.704</div>
             <div class="sub">Saldo base em conta</div>
           </div>
-          <div class="card">
+          <div class="card ok">
             <div class="lbl">A Receber</div>
-            <div class="val sm or" id="k-areceber">R$ 0,00</div>
+            <div class="val sm gr" id="k-areceber">R$ 0,00</div>
             <div class="sub">Contas cadastradas</div>
           </div>
           <div class="card bad">
@@ -943,6 +974,12 @@ function exportCSV(){
   showToast('CSV exportado');
 }
 
+// ── MOBILE MENU ──────────────────────────────────────
+function toggleMobileMenu(){
+  document.getElementById('mobileMenu').classList.toggle('show');
+  document.getElementById('mobileOverlay').classList.toggle('show');
+}
+
 // ── INIT ──────────────────────────────────────────────
 initCalendar();
 renderSquad(1);
@@ -952,5 +989,47 @@ renderFixas();
 renderReceber();
 loadFromSheets();
 </script>
+
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" style="position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;align-items:center;justify-content:center">
+  <div style="width:100%;max-width:380px;padding:24px">
+    <div style="text-align:center;margin-bottom:32px">
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:28px;font-weight:800;letter-spacing:-.5px">AVENTUS<span style="color:var(--or)">.</span></div>
+      <div style="font-size:11px;color:var(--tx3);letter-spacing:2px;text-transform:uppercase;margin-top:4px">Financeiro</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--bd);border-radius:12px;padding:28px">
+      <div style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:20px">Entrar</div>
+      <div style="margin-bottom:14px">
+        <label style="display:block;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--tx3);margin-bottom:6px;font-weight:700">Login</label>
+        <input id="loginUser" type="text" placeholder="Seu nome" style="width:100%;background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:10px 14px;font-size:13px;color:var(--tx);font-family:'Space Grotesk',sans-serif;outline:none" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div style="margin-bottom:20px">
+        <label style="display:block;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--tx3);margin-bottom:6px;font-weight:700">Senha</label>
+        <input id="loginPass" type="password" placeholder="••••••••" style="width:100%;background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:10px 14px;font-size:13px;color:var(--tx);font-family:'Space Grotesk',sans-serif;outline:none" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div id="loginErr" style="font-size:12px;color:var(--rd);margin-bottom:12px;display:none">Login ou senha incorretos.</div>
+      <button onclick="doLogin()" style="width:100%;background:var(--or);color:#fff;border:none;border-radius:7px;padding:11px;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14px;cursor:pointer">Entrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function doLogin(){
+  const user = document.getElementById('loginUser').value.trim();
+  const pass = document.getElementById('loginPass').value.trim();
+  if(user === 'Bruno Smaire' && pass === '600milem2026'){
+    document.getElementById('loginScreen').style.display = 'none';
+    sessionStorage.setItem('av_auth','1');
+  } else {
+    document.getElementById('loginErr').style.display = 'block';
+    document.getElementById('loginPass').value = '';
+  }
+}
+// Auto-login if already authenticated this session
+if(sessionStorage.getItem('av_auth') === '1'){
+  document.getElementById('loginScreen').style.display = 'none';
+}
+</script>
+
 </body>
 </html>
