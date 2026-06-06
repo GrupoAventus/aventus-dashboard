@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aventus · Dashboard Financeiro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --orange: #FF6B1A;
+      --orange-dim: #FF6B1A25;
+      --orange-border: #FF6B1A45;
+      --bg: #0a0a0a;
+      --bg2: #111111;
+      --bg3: #161616;
+      --border: #1e1e1e;
+      --text: #f0ede8;
+      --muted: #888;
+      --dim: #444;
+      --green: #4ade80;
+      --red: #ff5252;
+    }
+
+    html, body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; }
+
+    /* LAYOUT */
+    .layout { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+
+    /* SIDEBAR */
+    .sidebar {
+      background: #0d0d0d;
+      border-right: 1px solid var(--border);
+      padding: 28px 0;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 20px;
+      letter-spacing: -0.5px;
+      padding: 0 24px 28px;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo span { color: var(--orange); }
+
+    .nav { padding: 20px 12px; flex: 1; }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--dim);
+      cursor: pointer;
+      margin-bottom: 2px;
+      transition: all 0.15s;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+    }
+    .nav-item:hover { background: var(--bg3); color: var(--text); }
+    .nav-item.active { background: var(--orange-dim); color: var(--orange); border: 1px solid var(--orange-border); }
+    .nav-icon { font-size: 16px; width: 18px; text-align: center; }
+
+    .nav-section-label {
+      font-size: 9px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #333;
+      padding: 16px 12px 6px;
+      font-weight: 600;
+    }
+
+    .sidebar-footer {
+      padding: 20px 24px;
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: #333;
+    }
+
+    /* MAIN */
+    .main { overflow-y: auto; }
+
+    .topbar {
+      background: #0d0d0d;
+      border-bottom: 1px solid var(--border);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .topbar-title { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; }
+    .topbar-right { display: flex; align-items: center; gap: 12px; }
+    .badge { font-size: 11px; background: var(--orange-dim); color: var(--orange); border: 1px solid var(--orange-border); padding: 4px 12px; border-radius: 20px; font-weight: 500; }
+
+    .content { padding: 28px 32px; }
+
+    /* SECTION TITLE */
+    .section-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: var(--orange);
+      margin-bottom: 14px;
+      margin-top: 32px;
+    }
+    .section-title:first-child { margin-top: 0; }
+
+    /* GRIDS */
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+
+    /* CARDS */
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+    }
+    .card.accent { border-color: var(--orange-border); background: linear-gradient(135deg, #111 55%, #FF6B1A0a); }
+    .card.danger { border-color: #ff525228; background: #ff52520a; }
+    .card.success { border-color: #4ade8028; background: #4ade800a; }
+
+    .card-label {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--dim);
+      margin-bottom: 10px;
+    }
+    .card-value {
+      font-family: 'Syne', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--text);
+    }
+    .card-value.orange { color: var(--orange); }
+    .card-value.red { color: var(--red); }
+    .card-value.green { color: var(--green); }
+    .card-sub { font-size: 11px; color: #3a3a3a; margin-top: 7px; }
+
+    /* PROGRESS */
+    .progress-bar { background: var(--bg3); border-radius: 4px; height: 6px; overflow: hidden; margin-top: 12px; }
+    .progress-fill { height: 100%; border-radius: 4px; background: var(--orange); transition: width 0.5s ease; }
+    .progress-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--dim); margin-top: 8px; }
+
+    /* TABLES */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: #333; padding: 0 0 12px; font-weight: 600; border-bottom: 1px solid var(--border); }
+    td { padding: 10px 0; border-bottom: 1px solid #141414; color: var(--muted); vertical-align: middle; }
+    td.name { color: #ccc; font-weight: 500; }
+    td.val { color: var(--orange); font-weight: 600; text-align: right; }
+    td.center { text-align: center; }
+    td.green { color: var(--green); font-weight: 600; text-align: right; }
+    td.red { color: var(--red); font-weight: 600; text-align: right; }
+
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--orange); display: inline-block; margin-right: 8px; vertical-align: middle; }
+
+    /* FORM */
+    .form-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto; gap: 12px; align-items: end; }
+    .form-group label { display: block; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--dim); margin-bottom: 6px; font-weight: 600; }
+    .form-group input,
+    .form-group select {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .form-group input:focus,
+    .form-group select:focus { border-color: var(--orange-border); }
+    .form-group select option { background: #111; }
+
+    .btn {
+      background: var(--orange);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 22px;
+      font-family: 'Syne', sans-serif;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .btn:hover { background: #e55e10; }
+    .btn-outline {
+      background: transparent;
+      color: var(--orange);
+      border: 1px solid var(--orange-border);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 500;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-outline:hover { background: var(--orange-dim); }
+
+    /* ENTRIES */
+    .entries-list { margin-top: 16px; max-height: 220px; overflow-y: auto; }
+    .entry-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #141414; }
+    .entry-desc { font-size: 13px; color: #ccc; font-weight: 500; }
+    .entry-meta { font-size: 11px; color: #333; margin-top: 2px; }
+    .entry-val-pos { font-size: 13px; font-weight: 600; color: var(--green); }
+    .entry-val-neg { font-size: 13px; font-weight: 600; color: var(--red); }
+
+    .entries-totals {
+      display: flex;
+      gap: 28px;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .total-label { font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--dim); margin-bottom: 5px; font-weight: 600; }
+    .total-val { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; }
+
+    /* CHARTS */
+    .chart-wrap { position: relative; width: 100%; height: 220px; margin-top: 14px; }
+
+    /* PAGES */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* PILL */
+    .pill { font-size: 10px; padding: 3px 10px; border-radius: 10px; font-weight: 600; }
+    .pill.orange { background: var(--orange-dim); color: var(--orange); }
+    .pill.green { background: #4ade8020; color: var(--green); }
+    .pill.red { background: #ff525220; color: var(--red); }
+
+    /* EMPTY */
+    .empty { text-align: center; color: #2a2a2a; font-size: 13px; padding: 30px 0; }
+
+    /* EXPORT */
+    .topbar-actions { display: flex; gap: 8px; align-items: center; }
+
+    /* scrollbar */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #222; border-radius: 4px; }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+      .grid-4 { grid-template-columns: repeat(2, 1fr); }
+      .grid-3 { grid-template-columns: repeat(2, 1fr); }
+      .form-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="logo">AVENTUS<span>.</span></div>
+    <nav class="nav">
+      <div class="nav-section-label">Menu</div>
+      <button class="nav-item active" onclick="showPage('dashboard')">
+        <span class="nav-icon">📊</span> Dashboard
+      </button>
+      <button class="nav-item" onclick="showPage('lancamentos')">
+        <span class="nav-icon">✏️</span> Lançamentos
+      </button>
+      <button class="nav-item" onclick="showPage('renovacoes')">
+        <span class="nav-icon">🔄</span> Renovações
+      </button>
+      <button class="nav-item" onclick="showPage('fixas')">
+        <span class="nav-icon">📌</span> Contas Fixas
+      </button>
+      <div class="nav-section-label">Carteiras</div>
+      <button class="nav-item" onclick="showPage('assessoria')">
+        <span class="nav-icon">💼</span> Assessoria
+      </button>
+      <button class="nav-item" onclick="showPage('nexus')">
+        <span class="nav-icon">⚡</span> Nexus
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      Aventus Creative<br>Dashboard Financeiro
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-title" id="pageTitle">Dashboard</div>
+      <div class="topbar-actions">
+        <span id="currentDate" style="font-size:12px;color:var(--dim)"></span>
+        <span class="badge">JUNHO 2025</span>
+        <button class="btn-outline" onclick="exportCSV()">⬇ Exportar CSV</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- PAGE: DASHBOARD -->
+      <div class="page active" id="page-dashboard">
+        <div class="section-title">Visão Geral</div>
+        <div class="grid-4">
+          <div class="card accent">
+            <div class="card-label">Saldo Bruto</div>
+            <div class="card-value orange" id="kpi-saldoBruto">R$ 22.704</div>
+            <div class="card-sub">Caixa disponível</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Saldo Projetado</div>
+            <div class="card-value" id="kpi-saldoProjetado">R$ 10.105</div>
+            <div class="card-sub">Após projeções</div>
+          </div>
+          <div class="card success">
+            <div class="card-label">Entradas do Mês</div>
+            <div class="card-value green" id="kpi-entradas">R$ 13.500</div>
+            <div class="card-sub">Receita realizada</div>
+          </div>
+          <div class="card danger">
+            <div class="card-label">Resultado</div>
+            <div class="card-value red">R$ -16.036</div>
+            <div class="card-sub">Déficit acumulado</div>
+          </div>
+        </div>
+
+        <div class="grid-4" style="margin-top:12px">
+          <div class="card">
+            <div class="card-label">Patrimônio</div>
+            <div class="card-value red">R$ -3.394</div>
+            <div class="card-sub">Saldo patrimonial</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Assessoria</div>
+            <div class="card-value orange">R$ 35.730</div>
+            <div class="card-sub">Carteira total</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Nexus</div>
+            <div class="card-value">R$ 1.985</div>
+            <div class="card-sub">Carteira total</div>
+          </div>
+          <div class="card">
+            <div class="card-label">ADS / Dia</div>
+            <div class="card-value">R$ 250</div>
+            <div class="card-sub">Meta projetada: R$ 366</div>
+          </div>
+        </div>
+
+        <div class="section-title">Meta do Mês</div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+            <div>
+              <div class="card-label">Coleta mensal</div>
+              <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700">Meta: <span style="color:var(--orange)">R$ 50.000</span></div>
+            </div>
+            <div style="text-align:right">
+              <div class="card-label">Coletado</div>
+              <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:var(--green)" id="kpi-coletado">R$ 300</div>
+            </div>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" id="metaBar" style="width:0.6%"></div></div>
+          <div class="progress-labels"><span>Dia 4 de 30</span><span id="metaPct">0,6% da meta</span></div>
+        </div>
+
+        <div class="section-title">Distribuição de Gastos Fixos</div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-label">Contas Fixas do Mês</div>
+            <div class="chart-wrap"><canvas id="chartFixas" role="img" aria-label="Gráfico de contas fixas">Contas fixas mensais.</canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-label">Contas a Receber</div>
+            <div class="chart-wrap"><canvas id="chartReceber" role="img" aria-label="Contas a receber">Contas a receber por cliente.</canvas></div>
+          </div>
+        </div>
+
+        <div class="section-title">Últimos Lançamentos</div>
+        <div class="card">
+          <div class="entries-list" id="dash-entries">
+            <div class="empty">Nenhum lançamento ainda. Acesse a aba Lançamentos.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: LANÇAMENTOS -->
+      <div class="page" id="page-lancamentos">
+        <div class="section-title">Novo Lançamento</div>
+        <div class="card">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Descrição</label>
+              <input type="text" id="inDesc" placeholder="Ex: Venda — João Silva">
+            </div>
+            <div class="form-group">
+              <label>Valor (R$)</label>
+              <input type="number" id="inVal" placeholder="0,00" step="0.01">
+            </div>
+            <div class="form-group">
+              <label>Tipo</label>
+              <select id="inTipo">
+                <option value="entrada">Entrada</option>
+                <option value="saida">Saída</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Categoria</label>
+              <select id="inCat">
+                <option value="Venda">Venda</option>
+                <option value="Renovação">Renovação</option>
+                <option value="Assessoria">Assessoria</option>
+                <option value="Nexus">Nexus</option>
+                <option value="ADS">ADS</option>
+                <option value="Despesa Fixa">Despesa Fixa</option>
+                <option value="Despesa Variável">Despesa Variável</option>
+                <option value="Salário">Salário</option>
+                <option value="Outro">Outro</option>
+              </select>
+            </div>
+            <button class="btn" onclick="addEntry()">+ Lançar</button>
+          </div>
+        </div>
+
+        <div class="section-title">Histórico</div>
+        <div class="card">
+          <div id="fullEntriesList"><div class="empty">Nenhum lançamento ainda.</div></div>
+          <div class="entries-totals">
+            <div>
+              <div class="total-label">Total Entradas</div>
+              <div class="total-val" style="color:var(--green)" id="totalPos">R$ 0,00</div>
+            </div>
+            <div>
+              <div class="total-label">Total Saídas</div>
+              <div class="total-val" style="color:var(--red)" id="totalNeg">R$ 0,00</div>
+            </div>
+            <div>
+              <div class="total-label">Saldo Líquido</div>
+              <div class="total-val" id="totalNet">R$ 0,00</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: RENOVAÇÕES -->
+      <div class="page" id="page-renovacoes">
+        <div class="section-title">Renovações Previstas — Assessoria</div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Cliente</th><th class="center">Dia</th><th style="text-align:right">Valor</th><th style="text-align:right">Status</th></tr></thead>
+              <tbody id="tbAssessoriaFull"></tbody>
+            </table>
+          </div>
+          <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:space-between">
+            <div class="card-label">Total previsto</div>
+            <div style="font-family:'Syne',sans-serif;font-weight:700;color:var(--orange)" id="totalAssessoria">R$ 0</div>
+          </div>
+        </div>
+
+        <div class="section-title">Renovações Previstas — Nexus</div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Cliente</th><th class="center">Dia</th><th style="text-align:right">Valor</th></tr></thead>
+              <tbody id="tbNexusFull"></tbody>
+            </table>
+          </div>
+          <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:space-between">
+            <div class="card-label">Total previsto</div>
+            <div style="font-family:'Syne',sans-serif;font-weight:700;color:var(--orange)" id="totalNexus">R$ 0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: FIXAS -->
+      <div class="page" id="page-fixas">
+        <div class="section-title">Contas Fixas do Mês</div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Descrição</th><th style="text-align:right">Valor</th><th style="text-align:right">Tipo</th></tr></thead>
+              <tbody id="tbFixasFull"></tbody>
+            </table>
+          </div>
+          <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);display:flex;justify-content:space-between">
+            <div class="card-label">Total fixo mensal</div>
+            <div style="font-family:'Syne',sans-serif;font-weight:700;color:var(--red)" id="totalFixas">R$ 0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: ASSESSORIA -->
+      <div class="page" id="page-assessoria">
+        <div class="section-title">Carteira Assessoria</div>
+        <div class="grid-3">
+          <div class="card accent">
+            <div class="card-label">Total Carteira</div>
+            <div class="card-value orange">R$ 35.730</div>
+            <div class="card-sub">22 clientes ativos</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Ticket Médio</div>
+            <div class="card-value">R$ 1.624</div>
+            <div class="card-sub">Por cliente</div>
+          </div>
+          <div class="card success">
+            <div class="card-label">Previsão Junho</div>
+            <div class="card-value green">R$ 35.730</div>
+            <div class="card-sub">Se todos renovarem</div>
+          </div>
+        </div>
+        <div class="section-title">Clientes</div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Cliente</th><th class="center">Renovação</th><th style="text-align:right">Mensalidade</th></tr></thead>
+              <tbody id="tbAssessoriaPage"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE: NEXUS -->
+      <div class="page" id="page-nexus">
+        <div class="section-title">Carteira Nexus</div>
+        <div class="grid-3">
+          <div class="card accent">
+            <div class="card-label">Total Carteira</div>
+            <div class="card-value orange">R$ 1.985</div>
+            <div class="card-sub">6 clientes ativos</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Ticket Médio</div>
+            <div class="card-value">R$ 330</div>
+            <div class="card-sub">Por cliente</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Eric Nexus</div>
+            <div class="card-value">R$ 150</div>
+            <div class="card-sub">A receber</div>
+          </div>
+        </div>
+        <div class="section-title">Clientes</div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Cliente</th><th class="center">Renovação</th><th style="text-align:right">Mensalidade</th></tr></thead>
+              <tbody id="tbNexusPage"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </main>
+</div>
+
+<script>
+// DATA
+const assessoria = [
+  {nome:'Cássio',dia:6,val:2000},{nome:'Guilherme',dia:7,val:1800},{nome:'Maya',dia:7,val:2000},
+  {nome:'Alessandra',dia:8,val:1000},{nome:'Fabrício',dia:12,val:2000},{nome:'TJ Colecionáveis',dia:13,val:1000},
+  {nome:'Ulli',dia:15,val:2000},{nome:'José',dia:15,val:1500},{nome:'Otávio',dia:16,val:1500},
+  {nome:'Francielle',dia:16,val:1300},{nome:'Delphis',dia:17,val:1500},{nome:'Clínica Vida',dia:18,val:1500},
+  {nome:'Mosias',dia:21,val:1500},{nome:'Jessica',dia:22,val:1900},{nome:'Eletroscooter',dia:22,val:1500},
+  {nome:'Helox',dia:22,val:200},{nome:'Darlene',dia:23,val:1500},{nome:'Innove 3D',dia:25,val:2280},
+  {nome:'Green',dia:26,val:2000},{nome:'Joel',dia:26,val:1500},{nome:'Moldando Inox',dia:27,val:2000},
+  {nome:'Sapore & Art',dia:30,val:1500}
+];
+
+const nexus = [
+  {nome:'Invias Guilherme',dia:8,val:297},{nome:'Hevelem',dia:10,val:497},
+  {nome:'Bravvi',dia:26,val:297},{nome:'Eletroscooter',dia:27,val:197},
+  {nome:'Bella Farfalucce',dia:30,val:297},{nome:'Messias',dia:'—',val:400}
+];
+
+const fixas = [
+  {desc:'Número',val:300},{desc:'Workspace',val:104.99},{desc:'Hostinguer',val:29.99},
+  {desc:'Clicksign',val:99},{desc:'Salário',val:6000},{desc:'Contabilidade',val:390},
+  {desc:'Nexus B - CPF',val:590},{desc:'Brindes B - CPF',val:125},
+  {desc:'Verificado B - CPF',val:240},{desc:'Vinícius',val:2500},
+  {desc:'Vinícius Closer',val:1500},{desc:'Erick',val:3000}
+];
+
+const receber = [
+  {nome:'Clinicar',val:1997},{nome:'Rômulo',val:497},{nome:'Élida',val:1300},
+  {nome:'Glórya',val:500},{nome:'Regina',val:2000},{nome:'Hevelem Nexus',val:138},{nome:'Eric Nexus',val:150}
+];
+
+// STATE — persisted in localStorage
+let entries = JSON.parse(localStorage.getItem('aventus_entries') || '[]');
+let saldoBase = 22704;
+
+// UTILS
+function fmt(v){ return 'R$ ' + Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function today(){ const d=new Date(); return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}); }
+
+// NAV
+function showPage(name){
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  const titles = {dashboard:'Dashboard',lancamentos:'Lançamentos',renovacoes:'Renovações',fixas:'Contas Fixas',assessoria:'Carteira Assessoria',nexus:'Carteira Nexus'};
+  document.getElementById('pageTitle').textContent = titles[name] || name;
+  event.currentTarget.classList.add('active');
+}
+
+// TABLES
+function buildRenovTable(id, rows){
+  const tb = document.getElementById(id);
+  if(!tb) return;
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    const dia = typeof r.dia === 'number' && r.dia <= 31 ? r.dia : '—';
+    tr.innerHTML = `<td class="name"><span class="dot"></span>${r.nome}</td><td class="center">${dia}</td><td class="val">${fmt(r.val)}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+function buildFixasTable(){
+  const tb = document.getElementById('tbFixasFull');
+  let total = 0;
+  fixas.forEach(f => {
+    total += f.val;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="name"><span class="dot"></span>${f.desc}</td><td class="val">${fmt(f.val)}</td><td style="text-align:right"><span class="pill orange">Fixo</span></td>`;
+    tb.appendChild(tr);
+  });
+  document.getElementById('totalFixas').textContent = fmt(total);
+}
+
+function buildAssessoriaPage(){
+  const tb = document.getElementById('tbAssessoriaPage');
+  assessoria.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="name"><span class="dot"></span>${r.nome}</td><td class="center">Dia ${r.dia}</td><td class="val">${fmt(r.val)}</td>`;
+    tb.appendChild(tr);
+  });
+  const total = assessoria.reduce((a,b)=>a+b.val,0);
+  document.getElementById('totalAssessoria').textContent = fmt(total);
+}
+
+function buildNexusPage(){
+  const tb = document.getElementById('tbNexusPage');
+  nexus.forEach(r => {
+    const tr = document.createElement('tr');
+    const dia = typeof r.dia === 'number' && r.dia <= 31 ? 'Dia ' + r.dia : r.dia;
+    tr.innerHTML = `<td class="name"><span class="dot"></span>${r.nome}</td><td class="center">${dia}</td><td class="val">${fmt(r.val)}</td>`;
+    tb.appendChild(tr);
+  });
+  const total = nexus.reduce((a,b)=>a+b.val,0);
+  document.getElementById('totalNexus').textContent = fmt(total);
+}
+
+// ENTRIES
+function saveEntries(){ localStorage.setItem('aventus_entries', JSON.stringify(entries)); }
+
+function addEntry(){
+  const desc = document.getElementById('inDesc').value.trim();
+  const val = parseFloat(document.getElementById('inVal').value);
+  const tipo = document.getElementById('inTipo').value;
+  const cat = document.getElementById('inCat').value;
+  if(!desc || isNaN(val) || val <= 0){ alert('Preencha descrição e valor.'); return; }
+  entries.unshift({desc, val, tipo, cat, date: today(), id: Date.now()});
+  saveEntries();
+  document.getElementById('inDesc').value = '';
+  document.getElementById('inVal').value = '';
+  renderEntries();
+  updateKPIs();
+}
+
+function removeEntry(id){
+  entries = entries.filter(e => e.id !== id);
+  saveEntries();
+  renderEntries();
+  updateKPIs();
+}
+
+function renderEntries(){
+  const fullList = document.getElementById('fullEntriesList');
+  const dashList = document.getElementById('dash-entries');
+
+  if(entries.length === 0){
+    fullList.innerHTML = '<div class="empty">Nenhum lançamento ainda.</div>';
+    dashList.innerHTML = '<div class="empty">Nenhum lançamento ainda.</div>';
+    return;
+  }
+
+  const html = entries.map(e => `
+    <div class="entry-item">
+      <div>
+        <div class="entry-desc">${e.desc}</div>
+        <div class="entry-meta">${e.date} · ${e.cat} · <span class="pill ${e.tipo==='entrada'?'green':'red'}">${e.tipo==='entrada'?'Entrada':'Saída'}</span></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="${e.tipo==='entrada'?'entry-val-pos':'entry-val-neg'}">${e.tipo==='entrada'?'+':'-'}${fmt(e.val)}</div>
+        <button onclick="removeEntry(${e.id})" style="background:none;border:none;color:#333;cursor:pointer;font-size:16px;padding:4px">✕</button>
+      </div>
+    </div>
+  `).join('');
+
+  fullList.innerHTML = html;
+  dashList.innerHTML = entries.slice(0,5).map(e => `
+    <div class="entry-item">
+      <div>
+        <div class="entry-desc">${e.desc}</div>
+        <div class="entry-meta">${e.date} · ${e.cat}</div>
+      </div>
+      <div class="${e.tipo==='entrada'?'entry-val-pos':'entry-val-neg'}">${e.tipo==='entrada'?'+':'-'}${fmt(e.val)}</div>
+    </div>
+  `).join('');
+}
+
+function updateKPIs(){
+  let pos = 0, neg = 0;
+  entries.forEach(e => { if(e.tipo==='entrada') pos+=e.val; else neg+=e.val; });
+  const net = pos - neg;
+  const saldo = saldoBase + net;
+
+  document.getElementById('kpi-saldoBruto').textContent = fmt(saldo);
+  document.getElementById('kpi-entradas').textContent = fmt(13500 + pos);
+  document.getElementById('totalPos').textContent = fmt(pos);
+  document.getElementById('totalNeg').textContent = fmt(neg);
+  const netEl = document.getElementById('totalNet');
+  netEl.textContent = (net >= 0 ? '+' : '-') + fmt(Math.abs(net));
+  netEl.style.color = net >= 0 ? 'var(--green)' : 'var(--red)';
+}
+
+// CHARTS
+function initCharts(){
+  new Chart(document.getElementById('chartFixas'), {
+    type: 'bar',
+    data: {
+      labels: fixas.map(f=>f.desc),
+      datasets: [{
+        data: fixas.map(f=>f.val),
+        backgroundColor: fixas.map((f,i) => i===4 ? '#FF6B1A' : '#1e1e1e'),
+        borderColor: fixas.map((f,i) => i===4 ? '#FF6B1A' : '#2a2a2a'),
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => fmt(c.raw) } } },
+      scales: {
+        x: { ticks: { color: '#444', font: { size: 9 }, maxRotation: 45, autoSkip: false }, grid: { color: '#111' } },
+        y: { ticks: { color: '#444', font: { size: 10 }, callback: v => 'R$' + (v/1000).toFixed(0)+'k' }, grid: { color: '#151515' } }
+      }
+    }
+  });
+
+  new Chart(document.getElementById('chartReceber'), {
+    type: 'doughnut',
+    data: {
+      labels: receber.map(r=>r.nome),
+      datasets: [{
+        data: receber.map(r=>r.val),
+        backgroundColor: ['#FF6B1A','#cc5514','#e06020','#ff8c47','#b84d10','#ff7533','#ffa066'],
+        borderColor: '#0a0a0a',
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#555', font: { size: 10 }, padding: 8, boxWidth: 10 } },
+        tooltip: { callbacks: { label: c => c.label + ': ' + fmt(c.raw) } }
+      }
+    }
+  });
+}
+
+// EXPORT CSV
+function exportCSV(){
+  if(entries.length === 0){ alert('Nenhum lançamento para exportar.'); return; }
+  const header = 'Data,Descrição,Tipo,Categoria,Valor\n';
+  const rows = entries.map(e => `${e.date},"${e.desc}",${e.tipo},${e.cat},${e.tipo==='entrada'?e.val:-e.val}`).join('\n');
+  const blob = new Blob(['\uFEFF' + header + rows], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'aventus-lancamentos.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// DATE
+document.getElementById('currentDate').textContent = new Date().toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'});
+
+// INIT
+buildRenovTable('tbAssessoriaFull', assessoria);
+buildRenovTable('tbNexusFull', nexus);
+buildRenovTable('tbAssessoriaPage', assessoria);
+buildRenovTable('tbNexusPage', nexus);
+buildFixasTable();
+buildAssessoriaPage();
+buildNexusPage();
+renderEntries();
+updateKPIs();
+initCharts();
+</script>
+</body>
+</html>
