@@ -1087,18 +1087,10 @@ INSTRUÇÕES:
 ESTILO: fundo preto #0a0a0a, laranja #FF6B00, texto #e0e0e0, font system-ui.
 Retorne APENAS o HTML completo, sem markdown, sem backticks.`;
 
-    const r2 = await fetch('https://api.anthropic.com/v1/messages', {
+    const r2 = await fetch('/gerar-plano', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 8000,
-        messages: [{role:'user', content: prompt}]
-      })
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ prompt })
     });
     const d2 = await r2.json();
     if(d2.error) throw new Error(d2.error.message);
