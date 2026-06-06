@@ -1,0 +1,12 @@
+{
+  "name": "aventus-dashboard",
+  "version": "1.0.0",
+  "description": "Dashboard Financeiro Grupo Aventus",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
