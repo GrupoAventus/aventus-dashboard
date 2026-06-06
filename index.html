@@ -454,20 +454,35 @@ function nav(name, btn){
 async function loadFromSheets(){
   setLoading(true);
   try {
-    const res = await fetch(SHEET_URL);
-    const data = await res.json();
-    entries = data.filter(e=>e.desc).map((e,i)=>({...e,id:i+1,val:parseFloat(e.val)||0})).reverse();
+    const res = await fetch(SHEET_URL, {redirect:'follow'});
+    const text = await res.text();
+    const data = JSON.parse(text);
+    entries = data.filter(e=>e.desc).map((e,i)=>({...e,id:Date.now()+i,val:parseFloat(e.val)||0})).reverse();
     renderEntries(); updateKPIs();
     showToast('Dados sincronizados');
   } catch(err) {
-    showToast('Erro ao sincronizar','er');
+    console.error('Sheets load error:', err);
+    // fallback: load from localStorage cache
+    const cached = localStorage.getItem('av_entries_cache');
+    if(cached){ entries = JSON.parse(cached); renderEntries(); updateKPIs(); }
+    showToast('Usando cache local','er');
   } finally { setLoading(false); }
 }
 
 async function saveToSheets(entry){
+  // Save to localStorage cache immediately so reload doesn't lose data
+  const cached = JSON.parse(localStorage.getItem('av_entries_cache')||'[]');
+  cached.unshift(entry);
+  localStorage.setItem('av_entries_cache', JSON.stringify(cached));
   try {
-    await fetch(SHEET_URL,{method:'POST',body:JSON.stringify(entry),headers:{'Content-Type':'application/json'}});
-  } catch(err){ console.error(err); }
+    // Apps Script requires no-cors for POST from external origins
+    await fetch(SHEET_URL, {
+      method:'POST',
+      mode:'no-cors',
+      body:JSON.stringify(entry),
+      headers:{'Content-Type':'text/plain'}
+    });
+  } catch(err){ console.error('Save error:',err); }
 }
 
 // ── ENTRIES ───────────────────────────────────────────
@@ -495,6 +510,8 @@ function removeEntry(id){
 }
 
 function renderEntries(){
+  // Always keep cache in sync
+  localStorage.setItem('av_entries_cache', JSON.stringify(entries));
   const full = document.getElementById('full-elist');
   const dash = document.getElementById('dash-elist');
   if(!entries.length){
