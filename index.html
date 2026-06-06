@@ -1098,11 +1098,10 @@ Retorne APENAS o HTML completo, sem markdown, sem backticks.`;
 
     // 3. Salvar no Drive via Apps Script POST
     msgEl.textContent = msgs[3]; bar.style.width = '85%';
-    const r3 = await fetch(SHEET_URL, {
+    const r3 = await fetch('/salvar-drive', {
       method: 'POST',
-      mode: 'no-cors',
-      body: JSON.stringify({action:'salvarPlano', cliente, html}),
-      headers: {'Content-Type':'text/plain'}
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({action:'salvarPlano', cliente, html})
     });
 
     // 4. Buscar link da pasta
