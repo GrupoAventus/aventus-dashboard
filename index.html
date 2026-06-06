@@ -612,9 +612,28 @@ const receber = [
   {nome:'Glórya',val:500},{nome:'Regina',val:2000},{nome:'Hevelem Nexus',val:138},{nome:'Eric Nexus',val:150}
 ];
 
-// STATE — persisted in localStorage
-let entries = JSON.parse(localStorage.getItem('aventus_entries') || '[]');
+// GOOGLE SHEETS API
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbz2HeAVf-1khiQx7LEjRcE0AVocEh5HDoIPzQi8mZJnybtkPjDFduAIvVkilFZDw-wX/exec';
+
+let entries = [];
 let saldoBase = 22704;
+let sheetLoaded = false;
+
+async function loadFromSheets() {
+  try {
+    const res = await fetch(SHEET_URL);
+    const data = await res.json();
+    entries = data
+      .filter(e => e.desc)
+      .map((e, i) => ({...e, id: i + 1, val: parseFloat(e.val) || 0}))
+      .reverse();
+    sheetLoaded = true;
+    renderEntries();
+    updateKPIs();
+  } catch(err) {
+    console.error('Erro ao carregar planilha:', err);
+  }
+}
 
 // UTILS
 function fmt(v){ return 'R$ ' + Math.abs(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
@@ -678,16 +697,36 @@ function buildNexusPage(){
 }
 
 // ENTRIES
-function saveEntries(){ localStorage.setItem('aventus_entries', JSON.stringify(entries)); }
+async function saveToSheets(entry) {
+  try {
+    await fetch(SHEET_URL, {
+      method: 'POST',
+      body: JSON.stringify(entry),
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch(err) {
+    console.error('Erro ao salvar:', err);
+  }
+}
 
-function addEntry(){
+async function addEntry(){
   const desc = document.getElementById('inDesc').value.trim();
   const val = parseFloat(document.getElementById('inVal').value);
   const tipo = document.getElementById('inTipo').value;
   const cat = document.getElementById('inCat').value;
   if(!desc || isNaN(val) || val <= 0){ alert('Preencha descrição e valor.'); return; }
-  entries.unshift({desc, val, tipo, cat, date: today(), id: Date.now()});
-  saveEntries();
+
+  const btn = document.querySelector('.btn');
+  btn.textContent = 'Salvando...';
+  btn.disabled = true;
+
+  const entry = {desc, val, tipo, cat, date: today(), id: Date.now()};
+  await saveToSheets(entry);
+  entries.unshift(entry);
+
+  btn.textContent = '+ Lançar';
+  btn.disabled = false;
+
   document.getElementById('inDesc').value = '';
   document.getElementById('inVal').value = '';
   renderEntries();
@@ -696,7 +735,6 @@ function addEntry(){
 
 function removeEntry(id){
   entries = entries.filter(e => e.id !== id);
-  saveEntries();
   renderEntries();
   updateKPIs();
 }
@@ -818,9 +856,8 @@ buildRenovTable('tbNexusPage', nexus);
 buildFixasTable();
 buildAssessoriaPage();
 buildNexusPage();
-renderEntries();
-updateKPIs();
 initCharts();
+loadFromSheets();
 </script>
 </body>
 </html>
