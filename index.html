@@ -1065,17 +1065,10 @@ async function gerarPlano(){
   }, 8000);
 
   try {
-    const res = await fetch(SHEET_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      body: JSON.stringify({action:'plano', cliente}),
-      headers: {'Content-Type':'text/plain'}
+    const res = await fetch(SHEET_URL + '?action=plano&cliente=' + encodeURIComponent(cliente), {
+      redirect: 'follow'
     });
-
-    // Since no-cors, we need to poll or use a workaround
-    // Try with regular fetch first
-    const res2 = await fetch(SHEET_URL + '?action=plano&cliente=' + encodeURIComponent(cliente));
-    const data = await res2.json();
+    const data = await res.json();
 
     clearInterval(interval);
     bar.style.width = '100%';
@@ -1084,7 +1077,6 @@ async function gerarPlano(){
       document.getElementById('planoLoading').style.display = 'none';
       document.getElementById('planoResultado').style.display = 'block';
       document.getElementById('planoLink').href = data.link;
-
       planosHistorico.unshift({cliente, data: new Date().toLocaleDateString('pt-BR'), link: data.link});
       renderPlanoHistorico();
       showToast('Plano de ' + cliente + ' gerado!');
