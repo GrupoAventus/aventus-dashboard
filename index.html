@@ -560,17 +560,17 @@ function showToast(msg, type='ok'){
 function setLoading(on){ document.getElementById('loadingBar').classList.toggle('show',on); }
 function saveLocal(key,val){ 
   localStorage.setItem(key,JSON.stringify(val));
-  // Sync to Sheets asynchronously
-  fetch(SHEET_URL, {
-    method:'POST', mode:'no-cors',
+  // Sync to Sheets via server proxy
+  fetch('/sheets', {
+    method:'POST',
     body:JSON.stringify({action:'saveData', key, value:val}),
-    headers:{'Content-Type':'text/plain'}
+    headers:{'Content-Type':'application/json'}
   }).catch(e=>console.log('Sync error:',e));
 }
 
 async function loadAllDataFromSheets(){
   try {
-    const res = await fetch(SHEET_URL + '?action=getData', {redirect:'follow'});
+    const res = await fetch('/sheets?action=getData');
     const d = await res.json();
     if(!d.ok) return;
     const data = d.data;
@@ -627,7 +627,7 @@ function initCalendar(){
 async function loadFromSheets(){
   setLoading(true);
   try {
-    const res = await fetch(SHEET_URL, {redirect:'follow'});
+    const res = await fetch('/sheets');
     const data = await res.json();
     entries = data.filter(e=>e.desc).map((e,i)=>({...e,id:uid(),val:parseFloat(e.val)||0})).reverse();
     saveLocal('av_entries_cache', entries);
@@ -643,14 +643,14 @@ async function loadFromSheets(){
 async function saveToSheets(entry){
   saveLocal('av_entries_cache', entries);
   try {
-    await fetch(SHEET_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(entry),headers:{'Content-Type':'text/plain'}});
+    await fetch('/sheets',{method:'POST',body:JSON.stringify(entry),headers:{'Content-Type':'application/json'}});
   } catch(err){ console.error(err); }
 }
 
 async function deleteFromSheets(entry){
   saveLocal('av_entries_cache', entries);
   try {
-    await fetch(SHEET_URL,{method:'POST',mode:'no-cors',body:JSON.stringify({action:'delete',desc:entry.desc,date:entry.date,val:entry.val}),headers:{'Content-Type':'text/plain'}});
+    await fetch('/sheets',{method:'POST',body:JSON.stringify({action:'delete',desc:entry.desc,date:entry.date,val:entry.val}),headers:{'Content-Type':'application/json'}});
   } catch(err){ console.error(err); }
 }
 
