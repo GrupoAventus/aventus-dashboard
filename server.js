@@ -9,14 +9,94 @@ const ANTHROPIC_KEY = (process.env.ANTHROPIC_KEY || '').trim() ||
    'kHvWP-2jpQrrDj9w8LCXZl03VMpmqSq2EmyJybVKMmuZii',
    'GolmP5w-1fbtywAA'].join('');
 
-console.log('ANTHROPIC_KEY carregada:', ANTHROPIC_KEY ? 'SIM (' + ANTHROPIC_KEY.length + ' chars)' : 'NAO');
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbztLmvbk0qx2KkAcRwoHwb5ar1C6Gldhd4GtsCy1BBJcYI4F-2YsStBotkBJ8Dj3xdy/exec';
 
-http.createServer((req, res) => {
+function httpsGet(url) {
+  return new Promise((resolve, reject) => {
+    const follow = (u, redirects) => {
+      if (redirects > 5) return reject(new Error('Too many redirects'));
+      https.get(u, res => {
+        if ([301,302,303,307,308].includes(res.statusCode) && res.headers.location) {
+          return follow(res.headers.location, redirects + 1);
+        }
+        let data = '';
+        res.on('data', c => data += c);
+        res.on('end', () => resolve(data));
+      }).on('error', reject);
+    };
+    follow(url, 0);
+  });
+}
+
+function httpsPost(url, body) {
+  return new Promise((resolve, reject) => {
+    const follow = (u, b, redirects) => {
+      if (redirects > 5) return reject(new Error('Too many redirects'));
+      const parsed = new URL(u);
+      const opts = {
+        hostname: parsed.hostname,
+        path: parsed.pathname + parsed.search,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(b)
+        }
+      };
+      const req = https.request(opts, res => {
+        if ([301,302,303,307,308].includes(res.statusCode) && res.headers.location) {
+          // For redirects after POST, use GET
+          return httpsGet(res.headers.location).then(resolve).catch(reject);
+        }
+        let data = '';
+        res.on('data', c => data += c);
+        res.on('end', () => resolve(data));
+      });
+      req.on('error', reject);
+      req.write(b);
+      req.end();
+    };
+    follow(url, body, 0);
+  });
+}
+
+http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
+  // Proxy GET to Sheets
+  if (req.method === 'GET' && req.url.startsWith('/sheets')) {
+    try {
+      const params = req.url.replace('/sheets', '');
+      const data = await httpsGet(SCRIPT_URL + params);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(data);
+    } catch(err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+    return;
+  }
+
+  // Proxy POST to Sheets
+  if (req.method === 'POST' && req.url === '/sheets') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const data = await httpsPost(SCRIPT_URL, body);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(data || JSON.stringify({ ok: true }));
+      } catch(err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // Claude API proxy
   if (req.method === 'POST' && req.url === '/gerar-plano') {
     let body = '';
     req.on('data', chunk => body += chunk);
@@ -28,8 +108,7 @@ http.createServer((req, res) => {
           max_tokens: 8000,
           messages: [{ role: 'user', content: prompt }]
         });
-
-        const options = {
+        const opts = {
           hostname: 'api.anthropic.com',
           path: '/v1/messages',
           method: 'POST',
@@ -40,10 +119,7 @@ http.createServer((req, res) => {
             'Content-Length': Buffer.byteLength(payload)
           }
         };
-
-        console.log('Chamando Claude API com chave:', ANTHROPIC_KEY.substring(0,20) + '...');
-
-        const apiReq = https.request(options, apiRes => {
+        const apiReq = https.request(opts, apiRes => {
           let data = '';
           apiRes.on('data', chunk => data += chunk);
           apiRes.on('end', () => {
@@ -51,12 +127,10 @@ http.createServer((req, res) => {
             res.end(data);
           });
         });
-
         apiReq.on('error', err => {
           res.writeHead(500, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: { message: err.message } }));
         });
-
         apiReq.write(payload);
         apiReq.end();
       } catch(err) {
@@ -67,138 +141,12 @@ http.createServer((req, res) => {
     return;
   }
 
+  // Serve index.html
   const filePath = path.join(__dirname, 'index.html');
   fs.readFile(filePath, 'utf8', (err, data) => {
     if (err) { res.writeHead(500); res.end('Erro'); return; }
-    data = data.replace(
-      "const ANTHROPIC_KEY = window.ANTHROPIC_KEY || '';",
-      `const ANTHROPIC_KEY = '${ANTHROPIC_KEY}';`
-    );
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(data);
   });
-
-  // Proxy GET para Apps Script
-  if (req.method === 'GET' && req.url.startsWith('/sheets')) {
-    const parsedUrl = new URL('http://localhost' + req.url);
-    const params = parsedUrl.search;
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbztLmvbk0qx2KkAcRwoHwb5ar1C6Gldhd4GtsCy1BBJcYI4F-2YsStBotkBJ8Dj3xdy/exec';
-    
-    const makeRequest = (url, cb) => {
-      https.get(url, (r) => {
-        if (r.statusCode >= 300 && r.statusCode < 400 && r.headers.location) {
-          makeRequest(r.headers.location, cb);
-          return;
-        }
-        let d = '';
-        r.on('data', c => d += c);
-        r.on('end', () => cb(d));
-      }).on('error', e => cb(JSON.stringify({error: e.message})));
-    };
-    
-    makeRequest(SCRIPT_URL + params, (data) => {
-      res.writeHead(200, {'Content-Type': 'application/json'});
-      res.end(data);
-    });
-    return;
-  }
-
-  // Proxy POST para Apps Script
-  if (req.method === 'POST' && req.url === '/sheets') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', () => {
-      const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbztLmvbk0qx2KkAcRwoHwb5ar1C6Gldhd4GtsCy1BBJcYI4F-2YsStBotkBJ8Dj3xdy/exec';
-      
-      const makePost = (url, postData, cb) => {
-        const urlObj = new URL(url);
-        const opts = {
-          hostname: urlObj.hostname,
-          path: urlObj.pathname + urlObj.search,
-          method: 'POST',
-          headers: {'Content-Type':'application/json','Content-Length':Buffer.byteLength(postData)}
-        };
-        const r = https.request(opts, res => {
-          if(res.statusCode >= 300 && res.statusCode < 400 && res.headers.location){
-            makePost(res.headers.location, postData, cb); return;
-          }
-          let d=''; res.on('data',c=>d+=c); res.on('end',()=>cb(d));
-        });
-        r.on('error', e => cb(JSON.stringify({error:e.message})));
-        r.write(postData); r.end();
-      };
-      
-      makePost(SCRIPT_URL, body, (data) => {
-        res.writeHead(200, {'Content-Type':'application/json'});
-        res.end(data || JSON.stringify({ok:true}));
-      });
-    });
-    return;
-  }
-
-  // Proxy para Apps Script (evita CORS)
-  if (req.method === 'POST' && req.url === '/salvar-drive') {
-    let body = '';
-    req.on('data', chunk => body += chunk);
-    req.on('end', async () => {
-      try {
-        const dados = JSON.parse(body);
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbztLmvbk0qx2KkAcRwoHwb5ar1C6Gldhd4GtsCy1BBJcYI4F-2YsStBotkBJ8Dj3xdy/exec';
-        
-        const postData = JSON.stringify(dados);
-        const urlObj = new URL(SCRIPT_URL);
-        
-        const options = {
-          hostname: urlObj.hostname,
-          path: urlObj.pathname + urlObj.search,
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(postData)
-          }
-        };
-
-        const apiReq = https.request(options, apiRes => {
-          let data = '';
-          // Follow redirects
-          if (apiRes.statusCode >= 300 && apiRes.statusCode < 400 && apiRes.headers.location) {
-            const redirUrl = new URL(apiRes.headers.location);
-            const redirOpts = {
-              hostname: redirUrl.hostname,
-              path: redirUrl.pathname + redirUrl.search,
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) }
-            };
-            const redirReq = https.request(redirOpts, redirRes => {
-              let d = '';
-              redirRes.on('data', c => d += c);
-              redirRes.on('end', () => {
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(d || JSON.stringify({ok:true}));
-              });
-            });
-            redirReq.write(postData);
-            redirReq.end();
-            return;
-          }
-          apiRes.on('data', chunk => data += chunk);
-          apiRes.on('end', () => {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(data || JSON.stringify({ok:true}));
-          });
-        });
-        apiReq.on('error', err => {
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ ok: false, erro: err.message }));
-        });
-        apiReq.write(postData);
-        apiReq.end();
-      } catch(err) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: false, erro: err.message }));
-      }
-    });
-    return;
-  }
 
 }).listen(PORT, () => console.log(`Rodando na porta ${PORT}`));
