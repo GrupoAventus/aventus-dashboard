@@ -343,6 +343,9 @@
             <div class="fg"><label>Categoria</label><select id="inCat"><option>Venda</option><option>Renovação</option><option>Squad 1</option><option>Squad 2</option><option>Nexus</option><option>ADS</option><option>Conta Fixa</option><option>Despesa Variável</option><option>Salário</option><option>Outro</option></select></div>
             <button class="btn-main" id="btnLancar" onclick="addEntry()">+ Lançar</button>
           </div>
+          <div style="margin-top:10px">
+            <div class="fg"><label>Observação (opcional)</label><input type="text" id="inObs" placeholder="Ex: Pagamento referente a..."></div>
+          </div>
         </div>
         <div class="sec-title">Histórico</div>
         <div class="card">
@@ -416,12 +419,15 @@
             <div class="fg sm"><label>Mensalidade (R$)</label><input type="number" id="s1Val" placeholder="0,00"></div>
             <button class="btn-main" onclick="addSquadClient(1)">+ Adicionar</button>
           </div>
+          <div style="margin-top:10px">
+            <div class="fg"><label>Observação (opcional)</label><input type="text" id="s1Obs" placeholder="Ex: Cliente VIP, contrato anual..."></div>
+          </div>
         </div>
         <div class="sec-title">Clientes & Renovações</div>
         <div class="card">
           <div class="tbl-wrap">
             <table>
-              <thead><tr><th>Cliente</th><th class="ct">Dia</th><th style="text-align:right">Previsto</th><th class="ct">Renovou?</th><th style="text-align:right">Valor Real</th><th class="ct">Data</th><th></th></tr></thead>
+              <thead><tr><th>Cliente</th><th>Observação</th><th class="ct">Dia</th><th style="text-align:right">Previsto</th><th class="ct">Renovou?</th><th style="text-align:right">Valor Real</th><th class="ct">Data</th><th></th></tr></thead>
               <tbody id="tb-squad1"></tbody>
             </table>
           </div>
@@ -444,12 +450,15 @@
             <div class="fg sm"><label>Mensalidade (R$)</label><input type="number" id="s2Val" placeholder="0,00"></div>
             <button class="btn-main" onclick="addSquadClient(2)">+ Adicionar</button>
           </div>
+          <div style="margin-top:10px">
+            <div class="fg"><label>Observação (opcional)</label><input type="text" id="s2Obs" placeholder="Ex: Cliente VIP, contrato anual..."></div>
+          </div>
         </div>
         <div class="sec-title">Clientes & Renovações</div>
         <div class="card">
           <div class="tbl-wrap">
             <table>
-              <thead><tr><th>Cliente</th><th class="ct">Dia</th><th style="text-align:right">Previsto</th><th class="ct">Renovou?</th><th style="text-align:right">Valor Real</th><th class="ct">Data</th><th></th></tr></thead>
+              <thead><tr><th>Cliente</th><th>Observação</th><th class="ct">Dia</th><th style="text-align:right">Previsto</th><th class="ct">Renovou?</th><th style="text-align:right">Valor Real</th><th class="ct">Data</th><th></th></tr></thead>
               <tbody id="tb-squad2"></tbody>
             </table>
           </div>
@@ -472,12 +481,15 @@
             <div class="fg sm"><label>Mensalidade (R$)</label><input type="number" id="nxVal" placeholder="0,00"></div>
             <button class="btn-main" onclick="addNexusClient()">+ Adicionar</button>
           </div>
+          <div style="margin-top:10px">
+            <div class="fg"><label>Observação (opcional)</label><input type="text" id="nxObs" placeholder="Ex: Cliente VIP, contrato anual..."></div>
+          </div>
         </div>
         <div class="sec-title">Clientes & Renovações</div>
         <div class="card">
           <div class="tbl-wrap">
             <table>
-              <thead><tr><th>Cliente</th><th class="ct">Dia</th><th style="text-align:right">Previsto</th><th class="ct">Renovou?</th><th style="text-align:right">Valor Real</th><th class="ct">Data</th><th></th></tr></thead>
+              <thead><tr><th>Cliente</th><th>Observação</th><th class="ct">Dia</th><th style="text-align:right">Previsto</th><th class="ct">Renovou?</th><th style="text-align:right">Valor Real</th><th class="ct">Data</th><th></th></tr></thead>
               <tbody id="tb-nexus"></tbody>
             </table>
           </div>
@@ -663,12 +675,14 @@ async function addEntry(){
   if(!desc||isNaN(val)||val<=0){ showToast('Preencha descrição e valor','er'); return; }
   const btn=document.getElementById('btnLancar');
   btn.textContent='Salvando...'; btn.disabled=true;
-  const entry={desc,val,tipo,cat,date:todayStr(),id:uid()};
+  const obs=document.getElementById('inObs').value.trim();
+  const entry={desc,val,tipo,cat,obs,date:todayStr(),id:uid()};
   entries.unshift(entry);
   await saveToSheets(entry);
   btn.textContent='+ Lançar'; btn.disabled=false;
   document.getElementById('inDesc').value='';
   document.getElementById('inVal').value='';
+  document.getElementById('inObs').value='';
   renderAll();
   showToast('Lançamento salvo!');
 }
@@ -788,13 +802,15 @@ function addSquadClient(n){
   const nome=document.getElementById('s'+n+'Nome').value.trim();
   const dia=parseInt(document.getElementById('s'+n+'Dia').value)||'—';
   const val=parseFloat(document.getElementById('s'+n+'Val').value);
+  const obs=document.getElementById('s'+n+'Obs').value.trim();
   if(!nome||isNaN(val)||val<=0){ showToast('Preencha nome e valor','er'); return; }
-  const client={id:uid(),nome,dia,val};
+  const client={id:uid(),nome,dia,val,obs};
   if(n===1){ squad1.push(client); saveLocal('av_squad1',squad1); }
   else { squad2.push(client); saveLocal('av_squad2',squad2); }
   document.getElementById('s'+n+'Nome').value='';
   document.getElementById('s'+n+'Dia').value='';
   document.getElementById('s'+n+'Val').value='';
+  document.getElementById('s'+n+'Obs').value='';
   renderSquad(n);
   showToast('Cliente adicionado ao Squad '+n);
 }
@@ -812,12 +828,14 @@ function addNexusClient(){
   const nome=document.getElementById('nxNome').value.trim();
   const dia=parseInt(document.getElementById('nxDia').value)||'—';
   const val=parseFloat(document.getElementById('nxVal').value);
+  const obs=document.getElementById('nxObs').value.trim();
   if(!nome||isNaN(val)||val<=0){ showToast('Preencha nome e valor','er'); return; }
-  nexusClients.push({id:uid(),nome,dia,val});
+  nexusClients.push({id:uid(),nome,dia,val,obs});
   saveLocal('av_nexus',nexusClients);
   document.getElementById('nxNome').value='';
   document.getElementById('nxDia').value='';
   document.getElementById('nxVal').value='';
+  document.getElementById('nxObs').value='';
   renderNexus();
   showToast('Cliente adicionado ao Nexus');
 }
@@ -852,6 +870,7 @@ function renderSquad(n){
     const tr=document.createElement('tr');
     tr.innerHTML=`
       <td class="nm"><span class="dot"></span>${c.nome}</td>
+      <td style="color:var(--tx3);font-size:11px;max-width:140px">${c.obs||'—'}</td>
       <td class="ct" style="color:var(--tx3)">${c.dia}</td>
       <td class="vl">${fmt(c.val)}</td>
       <td class="ct"><label class="chk-wrap" style="justify-content:center"><input type="checkbox" ${st.renovou?'checked':''} onchange="toggleRenov('${key}','${c.nome}',${c.val},this,${n})"></label></td>
@@ -882,6 +901,7 @@ function renderNexus(){
     const tr=document.createElement('tr');
     tr.innerHTML=`
       <td class="nm"><span class="dot"></span>${c.nome}</td>
+      <td style="color:var(--tx3);font-size:11px;max-width:140px">${c.obs||'—'}</td>
       <td class="ct" style="color:var(--tx3)">${c.dia}</td>
       <td class="vl">${fmt(c.val)}</td>
       <td class="ct"><label class="chk-wrap" style="justify-content:center"><input type="checkbox" ${st.renovou?'checked':''} onchange="toggleRenovNexus('${key}','${c.nome}',${c.val},this)"></label></td>
