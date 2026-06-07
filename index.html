@@ -558,7 +558,44 @@ function showToast(msg, type='ok'){
   setTimeout(()=>t.classList.remove('show'),3000);
 }
 function setLoading(on){ document.getElementById('loadingBar').classList.toggle('show',on); }
-function saveLocal(key,val){ localStorage.setItem(key,JSON.stringify(val)); }
+function saveLocal(key,val){ 
+  localStorage.setItem(key,JSON.stringify(val));
+  // Sync to Sheets asynchronously
+  fetch(SHEET_URL, {
+    method:'POST', mode:'no-cors',
+    body:JSON.stringify({action:'saveData', key, value:val}),
+    headers:{'Content-Type':'text/plain'}
+  }).catch(e=>console.log('Sync error:',e));
+}
+
+async function loadAllDataFromSheets(){
+  try {
+    const res = await fetch(SHEET_URL + '?action=getData', {redirect:'follow'});
+    const d = await res.json();
+    if(!d.ok) return;
+    const data = d.data;
+    // Restore each key to localStorage if not already set
+    const keys = ['av_squad1','av_squad2','av_nexus','av_fixas2','av_receber','av_renov','av_caixa'];
+    keys.forEach(key => {
+      if(data[key] !== undefined && !localStorage.getItem(key)){
+        localStorage.setItem(key, JSON.stringify(data[key]));
+      }
+    });
+    // Reload state from localStorage
+    squad1 = JSON.parse(localStorage.getItem('av_squad1') || 'null') || squad1;
+    squad2 = JSON.parse(localStorage.getItem('av_squad2') || '[]');
+    nexusClients = JSON.parse(localStorage.getItem('av_nexus') || 'null') || nexusClients;
+    fixas = JSON.parse(localStorage.getItem('av_fixas2') || 'null') || fixas;
+    receber = JSON.parse(localStorage.getItem('av_receber') || 'null') || receber;
+    renovState = JSON.parse(localStorage.getItem('av_renov') || '{}');
+    CAIXA_BASE = parseFloat(localStorage.getItem('av_caixa') || '22704');
+    // Re-render everything
+    renderSquad(1); renderSquad(2); renderNexus(); renderFixas(); renderReceber();
+    document.getElementById('caixaAtualDisp').textContent = fmt(CAIXA_BASE);
+    updateKPIs();
+    showToast('Dados restaurados do Sheets');
+  } catch(e){ console.log('Load data error:',e); }
+}
 
 // ── NAV ───────────────────────────────────────────────
 const pageTitles={dashboard:'Dashboard',lancamentos:'Lançamentos',receber:'A Receber',fixas:'Contas Fixas',squad1:'Squad 1',squad2:'Squad 2',nexus:'Nexus',planos:'Planos de Ação'};
@@ -1123,6 +1160,8 @@ function salvarCaixa(){
 initCalendar();
 // Init caixa display
 document.getElementById('caixaAtualDisp').textContent = fmt(CAIXA_BASE);
+// Load all data from Sheets on startup
+loadAllDataFromSheets();
 renderSquad(1);
 renderSquad(2);
 renderNexus();
