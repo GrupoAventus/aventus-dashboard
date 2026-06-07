@@ -78,6 +78,64 @@ http.createServer((req, res) => {
     res.end(data);
   });
 
+  // Proxy GET para Apps Script
+  if (req.method === 'GET' && req.url.startsWith('/sheets')) {
+    const parsedUrl = new URL('http://localhost' + req.url);
+    const params = parsedUrl.search;
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbztLmvbk0qx2KkAcRwoHwb5ar1C6Gldhd4GtsCy1BBJcYI4F-2YsStBotkBJ8Dj3xdy/exec';
+    
+    const makeRequest = (url, cb) => {
+      https.get(url, (r) => {
+        if (r.statusCode >= 300 && r.statusCode < 400 && r.headers.location) {
+          makeRequest(r.headers.location, cb);
+          return;
+        }
+        let d = '';
+        r.on('data', c => d += c);
+        r.on('end', () => cb(d));
+      }).on('error', e => cb(JSON.stringify({error: e.message})));
+    };
+    
+    makeRequest(SCRIPT_URL + params, (data) => {
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      res.end(data);
+    });
+    return;
+  }
+
+  // Proxy POST para Apps Script
+  if (req.method === 'POST' && req.url === '/sheets') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbztLmvbk0qx2KkAcRwoHwb5ar1C6Gldhd4GtsCy1BBJcYI4F-2YsStBotkBJ8Dj3xdy/exec';
+      
+      const makePost = (url, postData, cb) => {
+        const urlObj = new URL(url);
+        const opts = {
+          hostname: urlObj.hostname,
+          path: urlObj.pathname + urlObj.search,
+          method: 'POST',
+          headers: {'Content-Type':'application/json','Content-Length':Buffer.byteLength(postData)}
+        };
+        const r = https.request(opts, res => {
+          if(res.statusCode >= 300 && res.statusCode < 400 && res.headers.location){
+            makePost(res.headers.location, postData, cb); return;
+          }
+          let d=''; res.on('data',c=>d+=c); res.on('end',()=>cb(d));
+        });
+        r.on('error', e => cb(JSON.stringify({error:e.message})));
+        r.write(postData); r.end();
+      };
+      
+      makePost(SCRIPT_URL, body, (data) => {
+        res.writeHead(200, {'Content-Type':'application/json'});
+        res.end(data || JSON.stringify({ok:true}));
+      });
+    });
+    return;
+  }
+
   // Proxy para Apps Script (evita CORS)
   if (req.method === 'POST' && req.url === '/salvar-drive') {
     let body = '';
