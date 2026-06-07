@@ -194,8 +194,6 @@
       <button class="nav-btn" onclick="nav('squad1',this)"><span class="nav-icon">◈</span>Squad 1</button>
       <button class="nav-btn" onclick="nav('squad2',this)"><span class="nav-icon">◈</span>Squad 2</button>
       <button class="nav-btn" onclick="nav('nexus',this)"><span class="nav-icon">⚡</span>Nexus</button>
-      <div class="nav-group">Ferramentas</div>
-      <button class="nav-btn" onclick="nav('planos',this)"><span class="nav-icon">◆</span>Planos de Ação</button>
     </nav>
     <div class="sidebar-foot">Grupo Aventus_</div>
   </aside>
@@ -324,6 +322,18 @@
 
       <!-- ── LANÇAMENTOS ── -->
       <div class="page" id="page-lancamentos">
+        <div class="sec-title">Caixa Atual</div>
+        <div class="card" style="margin-bottom:14px">
+          <div style="display:flex;align-items:flex-end;gap:12px">
+            <div class="fg" style="flex:1">
+              <label>Saldo em conta (R$)</label>
+              <input type="number" id="caixaInput" placeholder="Ex: 22704" step="0.01" style="font-size:16px;font-weight:600">
+            </div>
+            <button class="btn-main" onclick="salvarCaixa()">Atualizar Caixa</button>
+          </div>
+          <div style="margin-top:10px;font-size:12px;color:var(--tx3)">Caixa atual: <span style="color:var(--gr);font-weight:700" id="caixaAtualDisp">R$ 22.704,00</span></div>
+        </div>
+
         <div class="sec-title">Novo Lançamento</div>
         <div class="card">
           <div class="form-row">
@@ -477,56 +487,6 @@
           </div>
         </div>
       </div>
-
-
-      <!-- ── PLANOS DE AÇÃO ── -->
-      <div class="page" id="page-planos">
-        <div class="sec-title">Gerar Plano de Ação</div>
-        <div class="card" style="margin-bottom:16px">
-          <div class="lbl" style="margin-bottom:12px">Como funciona</div>
-          <p style="font-size:13px;color:var(--tx2);line-height:1.7">
-            Digite o nome do cliente e clique em <strong style="color:var(--tx)">Gerar Plano</strong>. Uma janela vai abrir brevemente para autenticação — pode fechar depois. O plano será gerado e salvo no Drive automaticamente.
-          </p>
-        </div>
-        <div class="card">
-          <div class="squad-add" style="align-items:flex-end">
-            <div class="fg" style="flex:2">
-              <label>Nome do Cliente</label>
-              <input type="text" id="planoCliente" placeholder="Ex: Dr. Fernando Barreto" onkeydown="if(event.key==='Enter')gerarPlano()">
-            </div>
-            <button class="btn-main" id="btnPlano" onclick="gerarPlano()">⚡ Gerar Plano</button>
-          </div>
-
-          <div id="planoStatus" style="display:none;margin-top:20px">
-            <div id="planoLoading" style="display:none;text-align:center;padding:28px 0">
-              <div style="font-size:13px;color:var(--tx2);margin-bottom:8px" id="planoLoadingMsg">Buscando transcrição no Drive...</div>
-              <div style="width:100%;background:var(--bg3);border-radius:3px;height:3px;overflow:hidden">
-                <div id="planoProgressBar" style="height:100%;background:var(--or);border-radius:3px;width:0%;transition:width 1s ease"></div>
-              </div>
-            </div>
-            <div id="planoResultado" style="display:none">
-              <div style="display:flex;align-items:center;gap:12px;padding:16px;background:#4ade800a;border:1px solid #4ade8022;border-radius:8px">
-                <div style="font-size:24px">✓</div>
-                <div>
-                  <div style="font-size:14px;font-weight:700;color:var(--gr);margin-bottom:4px">Plano gerado com sucesso!</div>
-                  <div style="font-size:12px;color:var(--tx2)">A pasta foi criada no Google Drive</div>
-                </div>
-                <a id="planoLink" href="#" target="_blank" style="margin-left:auto;background:var(--or);color:#fff;border:none;border-radius:7px;padding:9px 18px;font-family:system-ui,sans-serif;font-weight:700;font-size:13px;text-decoration:none;white-space:nowrap">Abrir no Drive →</a>
-              </div>
-            </div>
-            <div id="planoErro" style="display:none;padding:16px;background:#ff52520a;border:1px solid #ff525222;border-radius:8px">
-              <div style="font-size:13px;font-weight:700;color:var(--rd);margin-bottom:4px">Erro ao gerar plano</div>
-              <div style="font-size:12px;color:var(--tx2)" id="planoErroMsg"></div>
-            </div>
-          </div>
-        </div>
-
-        <div class="sec-title">Histórico de Planos</div>
-        <div class="card">
-          <div id="planoHistorico"><div class="empty">Nenhum plano gerado ainda nesta sessão.</div></div>
-        </div>
-      </div>
-
     </div><!-- /content -->
   </main>
 </div>
@@ -534,7 +494,7 @@
 <script>
 // ── CONFIG ────────────────────────────────────────────
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbztLmvbk0qx2KkAcRwoHwb5ar1C6Gldhd4GtsCy1BBJcYI4F-2YsStBotkBJ8Dj3xdy/exec';
-const CAIXA_BASE = 22704;
+let CAIXA_BASE = parseFloat(localStorage.getItem('av_caixa') || '22704');
 const META = 50000;
 const DIAS_MES = 30;
 
@@ -1029,7 +989,7 @@ function exportCSV(){
 
 
 // ── PLANOS DE AÇÃO ────────────────────────────────────
-const ANTHROPIC_KEY = window.ANTHROPIC_KEY || '';
+
 let planosHistorico = [];
 
 async function gerarPlano(){
@@ -1147,8 +1107,22 @@ function toggleMobileMenu(){
   document.getElementById('mobileOverlay').classList.toggle('show');
 }
 
+// ── CAIXA ─────────────────────────────────────────────
+function salvarCaixa(){
+  const val = parseFloat(document.getElementById('caixaInput').value);
+  if(isNaN(val) || val < 0){ showToast('Valor inválido','er'); return; }
+  CAIXA_BASE = val;
+  localStorage.setItem('av_caixa', val);
+  document.getElementById('caixaAtualDisp').textContent = fmt(val);
+  document.getElementById('caixaInput').value = '';
+  updateKPIs();
+  showToast('Caixa atualizado!');
+}
+
 // ── INIT ──────────────────────────────────────────────
 initCalendar();
+// Init caixa display
+document.getElementById('caixaAtualDisp').textContent = fmt(CAIXA_BASE);
 renderSquad(1);
 renderSquad(2);
 renderNexus();
