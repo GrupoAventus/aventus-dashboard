@@ -1434,8 +1434,8 @@ function renderRH(){
         </td>
         <td style="color:var(--tx3);font-size:11px">${f.entrada||'—'}</td>
         <td class="ct" style="color:var(--tx3)">Dia ${f.diaPag}</td>
-        <td class="vl">${fmt(f.salario)}</td>
-        <td style="color:var(--tx3);font-size:11px;max-width:160px">${f.obs||'—'}</td>
+        <td class="vl" style="white-space:nowrap">${fmt(f.salario)}</td>
+        <td style="color:var(--tx3);font-size:11px;min-width:100px;padding-left:12px">${f.obs||'—'}</td>
         <td class="ct">
           <label class="chk-wrap" style="justify-content:center">
             <input type="checkbox" ${f.ativo?'checked':''} onchange="toggleRHAtivo(${f.id})">
@@ -1449,7 +1449,7 @@ function renderRH(){
       <div class="card">
         <div class="tbl-wrap">
           <table>
-            <thead><tr><th>Nome</th><th>Entrada</th><th class="ct">Pag.</th><th style="text-align:right">Salário</th><th style="min-width:120px">Obs</th><th class="ct">Ativo?</th><th></th></tr></thead>
+            <thead><tr><th>Nome</th><th>Entrada</th><th class="ct">Pag.</th><th style="text-align:right;white-space:nowrap">Salário</th><th style="padding-left:12px;min-width:100px">Obs</th><th class="ct">Ativo?</th><th></th></tr></thead>
             <tbody>${rows}</tbody>
           </table>
         </div>
