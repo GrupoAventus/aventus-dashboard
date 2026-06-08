@@ -895,9 +895,15 @@ function renderSquad(n){
   // KPIs
   const total=clients.reduce((a,c)=>a+c.val,0);
   const renovado=clients.reduce((a,c)=>{ const st=renovState[prefix+'_'+c.id]; return a+(st&&st.renovou?parseFloat(st.valor||c.val):0); },0);
+  const cancelados=clients.filter(c=>{ const st=renovState[prefix+'_'+c.id]; return st&&st.cancelou; }).length;
+  const renovados=clients.filter(c=>{ const st=renovState[prefix+'_'+c.id]; return st&&st.renovou; }).length;
+  const pctRenov = clients.length ? Math.round((renovados/clients.length)*100) : 0;
+  const churnVal = clients.reduce((a,c)=>{ const st=renovState[prefix+'_'+c.id]; return a+(st&&st.cancelou?c.val:0); },0);
   document.getElementById(kpiId).innerHTML=`
-    <div class="card hero"><div class="lbl">Carteira Total</div><div class="val or sm">${fmt(total)}</div><div class="sub">${clients.length} clientes</div></div>
-    <div class="card ok"><div class="lbl">Renovado no Mês</div><div class="val gr sm">${fmt(renovado)}</div><div class="sub">Confirmado</div></div>
+    <div class="card hero"><div class="lbl">Carteira Total</div><div class="val or sm">${fmt(total)}</div><div class="sub">${clients.length} clientes ativos</div></div>
+    <div class="card ok"><div class="lbl">Renovado no Mês</div><div class="val gr sm">${fmt(renovado)}</div><div class="sub">${renovados} de ${clients.length} clientes</div></div>
+    <div class="card"><div class="lbl">% Renovação</div><div class="val sm" style="color:${pctRenov>=70?'var(--gr)':pctRenov>=40?'var(--yw)':'var(--rd)'}">${pctRenov}%</div><div class="sub">Taxa do mês</div></div>
+    <div class="card bad"><div class="lbl">Churn</div><div class="val rd sm">${cancelados} cliente${cancelados!==1?'s':''}</div><div class="sub">${fmt(churnVal)} perdidos</div></div>
     <div class="card"><div class="lbl">Ticket Médio</div><div class="val sm">${clients.length?fmt(total/clients.length):'R$ 0,00'}</div><div class="sub">Por cliente</div></div>`;
 
   const tb=document.getElementById(tbId); tb.innerHTML='';
