@@ -533,6 +533,47 @@
         </div>
       </div>
 
+
+      <!-- ── RH ── -->
+      <div class="page" id="page-rh">
+
+        <div class="sec-title">Dashboard RH</div>
+        <div class="g4" id="kpi-rh">
+          <div class="card hero"><div class="lbl">Total Equipe</div><div class="val or" id="rh-total-func">0</div><div class="sub">Colaboradores</div></div>
+          <div class="card bad"><div class="lbl">Folha Mensal</div><div class="val rd" id="rh-total-folha">R$ 0,00</div><div class="sub">Total a pagar</div></div>
+          <div class="card yw"><div class="lbl">Próx. Pagamento</div><div class="val yw" style="font-size:16px" id="rh-prox-pag">—</div><div class="sub" id="rh-prox-nome">—</div></div>
+          <div class="card"><div class="lbl">Cargos Ativos</div><div class="val" id="rh-cargos">0</div><div class="sub">De 6 possíveis</div></div>
+        </div>
+
+        <div class="sec-title" style="margin-top:20px">Adicionar Colaborador</div>
+        <div class="card" style="margin-bottom:14px">
+          <div class="form-row" style="grid-template-columns:2fr 1.5fr 1fr 1fr 1fr auto">
+            <div class="fg"><label>Nome</label><input type="text" id="rhNome" placeholder="Ex: João Silva"></div>
+            <div class="fg"><label>Cargo</label>
+              <select id="rhCargo">
+                <option>Head Comercial</option>
+                <option>SDR</option>
+                <option>Closer</option>
+                <option>Head de Operação</option>
+                <option>Gestor de Performance</option>
+                <option>Designer</option>
+              </select>
+            </div>
+            <div class="fg"><label>Data de Entrada</label><input type="text" id="rhEntrada" placeholder="Ex: 01/03/2025"></div>
+            <div class="fg"><label>Dia Pagamento</label><input type="number" id="rhDiaPag" placeholder="Ex: 5" min="1" max="31"></div>
+            <div class="fg"><label>Salário (R$)</label><input type="number" id="rhSalario" placeholder="0,00"></div>
+            <button class="btn-main" onclick="addRHFunc()">+ Adicionar</button>
+          </div>
+          <div style="margin-top:10px">
+            <div class="fg"><label>Observação (opcional)</label><input type="text" id="rhObs" placeholder="Ex: CLT, PJ, comissão..."></div>
+          </div>
+        </div>
+
+        <!-- Por cargo -->
+        <div id="rh-cargos-list"></div>
+
+      </div>
+
     </div><!-- /content -->
   </main>
 </div>
@@ -564,6 +605,7 @@ let squad1 = JSON.parse(localStorage.getItem('av_squad1') || 'null') || [
 ];
 let squad2 = JSON.parse(localStorage.getItem('av_squad2') || '[]');
 let hubClients = JSON.parse(localStorage.getItem('av_hub') || '[]');
+let rhFuncs = JSON.parse(localStorage.getItem('av_rh') || '[]');
 
 let nexusClients = JSON.parse(localStorage.getItem('av_nexus') || 'null') || [
   {id:1,nome:'Invias Guilherme',dia:8,val:297},{id:2,nome:'Hevelem',dia:10,val:497},
@@ -624,7 +666,7 @@ async function loadAllDataFromSheets(){
     if(!d.ok) return;
     const data = d.data;
     // Restore each key to localStorage if not already set
-    const keys = ['av_squad1','av_squad2','av_nexus','av_hub','av_fixas2','av_receber','av_renov','av_caixa'];
+    const keys = ['av_squad1','av_squad2','av_nexus','av_hub','av_rh','av_fixas2','av_receber','av_renov','av_caixa'];
     keys.forEach(key => {
       if(data[key] !== undefined){
         localStorage.setItem(key, JSON.stringify(data[key]));
@@ -633,6 +675,7 @@ async function loadAllDataFromSheets(){
     // Reload state from localStorage
     squad1 = JSON.parse(localStorage.getItem('av_squad1') || 'null') || squad1;
     hubClients = JSON.parse(localStorage.getItem('av_hub') || '[]');
+    rhFuncs = JSON.parse(localStorage.getItem('av_rh') || '[]');
     squad2 = JSON.parse(localStorage.getItem('av_squad2') || '[]');
     nexusClients = JSON.parse(localStorage.getItem('av_nexus') || 'null') || nexusClients;
     fixas = JSON.parse(localStorage.getItem('av_fixas2') || 'null') || fixas;
@@ -641,7 +684,7 @@ async function loadAllDataFromSheets(){
     const caixaRaw = localStorage.getItem('av_caixa');
     CAIXA_BASE = caixaRaw ? parseFloat(JSON.parse(caixaRaw)) : 22704;
     // Re-render everything
-    renderSquad(1); renderSquad(2); renderNexus(); renderFixas(); renderReceber();
+    renderSquad(1); renderSquad(2); renderNexus(); renderHub(); renderRH(); renderFixas(); renderReceber();
     document.getElementById('caixaAtualDisp').textContent = fmt(CAIXA_BASE);
     updateKPIs();
     showToast('Dados restaurados do Sheets');
@@ -649,7 +692,7 @@ async function loadAllDataFromSheets(){
 }
 
 // ── NAV ───────────────────────────────────────────────
-const pageTitles={dashboard:'Dashboard',lancamentos:'Lançamentos',receber:'A Receber',fixas:'Contas Fixas',squad1:'Squad 1',squad2:'Squad 2',nexus:'Nexus',hub:'Hub'};
+const pageTitles={dashboard:'Dashboard',lancamentos:'Lançamentos',receber:'A Receber',fixas:'Contas Fixas',squad1:'Squad 1',squad2:'Squad 2',nexus:'Nexus',hub:'Hub',rh:'RH'};
 function nav(name,btn){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
@@ -1312,6 +1355,108 @@ function updateRenovValHub(key){
   renderHub();
 }
 
+
+// ── RH ────────────────────────────────────────────────
+const RH_CARGOS = ['Head Comercial','SDR','Closer','Head de Operação','Gestor de Performance','Designer'];
+const CARGO_ICONS = {'Head Comercial':'🎯','SDR':'📞','Closer':'🤝','Head de Operação':'⚙️','Gestor de Performance':'📊','Designer':'🎨'};
+
+function addRHFunc(){
+  const nome = document.getElementById('rhNome').value.trim();
+  const cargo = document.getElementById('rhCargo').value;
+  const entrada = document.getElementById('rhEntrada').value.trim();
+  const diaPag = parseInt(document.getElementById('rhDiaPag').value)||1;
+  const salario = parseFloat(document.getElementById('rhSalario').value);
+  const obs = document.getElementById('rhObs').value.trim();
+  if(!nome||isNaN(salario)||salario<=0){ showToast('Preencha nome e salário','er'); return; }
+  rhFuncs.push({id:uid(),nome,cargo,entrada,diaPag,salario,obs,ativo:true});
+  saveLocal('av_rh', rhFuncs);
+  document.getElementById('rhNome').value='';
+  document.getElementById('rhEntrada').value='';
+  document.getElementById('rhDiaPag').value='';
+  document.getElementById('rhSalario').value='';
+  document.getElementById('rhObs').value='';
+  renderRH();
+  showToast(nome+' adicionado à equipe!');
+}
+
+function removeRHFunc(id){
+  rhFuncs = rhFuncs.filter(f=>f.id!==id);
+  saveLocal('av_rh', rhFuncs);
+  renderRH();
+}
+
+function toggleRHAtivo(id){
+  const f = rhFuncs.find(f=>f.id===id);
+  if(f){ f.ativo = !f.ativo; saveLocal('av_rh', rhFuncs); renderRH(); }
+}
+
+function renderRH(){
+  const hoje = new Date().getDate();
+  const totalFolha = rhFuncs.filter(f=>f.ativo).reduce((a,f)=>a+f.salario,0);
+  const cargosAtivos = new Set(rhFuncs.filter(f=>f.ativo).map(f=>f.cargo)).size;
+
+  // Próximo pagamento
+  const ativos = rhFuncs.filter(f=>f.ativo).sort((a,b)=>{
+    const da = a.diaPag >= hoje ? a.diaPag : a.diaPag + 31;
+    const db = b.diaPag >= hoje ? b.diaPag : b.diaPag + 31;
+    return da - db;
+  });
+  const prox = ativos[0];
+
+  document.getElementById('rh-total-func').textContent = rhFuncs.filter(f=>f.ativo).length;
+  document.getElementById('rh-total-folha').textContent = fmt(totalFolha);
+  document.getElementById('rh-cargos').textContent = cargosAtivos;
+  if(prox){
+    document.getElementById('rh-prox-pag').textContent = 'Dia ' + prox.diaPag;
+    document.getElementById('rh-prox-nome').textContent = prox.nome + ' — ' + fmt(prox.salario);
+  }
+
+  // Render por cargo
+  const container = document.getElementById('rh-cargos-list');
+  container.innerHTML = '';
+
+  RH_CARGOS.forEach(cargo => {
+    const funcs = rhFuncs.filter(f=>f.cargo===cargo);
+    if(funcs.length === 0) return;
+
+    const totalCargo = funcs.filter(f=>f.ativo).reduce((a,f)=>a+f.salario,0);
+    const section = document.createElement('div');
+    section.style.marginBottom = '20px';
+
+    const rows = funcs.map(f => `
+      <tr>
+        <td class="nm" style="${!f.ativo?'text-decoration:line-through;color:var(--tx3)':''}">
+          <span class="dot" style="${!f.ativo?'background:var(--tx3)':''}"></span>${f.nome}
+        </td>
+        <td style="color:var(--tx3);font-size:11px">${f.entrada||'—'}</td>
+        <td class="ct" style="color:var(--tx3)">Dia ${f.diaPag}</td>
+        <td class="vl">${fmt(f.salario)}</td>
+        <td style="color:var(--tx3);font-size:11px;max-width:160px">${f.obs||'—'}</td>
+        <td class="ct">
+          <label class="chk-wrap" style="justify-content:center">
+            <input type="checkbox" ${f.ativo?'checked':''} onchange="toggleRHAtivo(${f.id})">
+          </label>
+        </td>
+        <td class="ct"><button class="rm-btn" onclick="removeRHFunc(${f.id})">✕</button></td>
+      </tr>`).join('');
+
+    section.innerHTML = `
+      <div class="sec-title">${CARGO_ICONS[cargo]||'👤'} ${cargo} <span style="font-size:10px;color:var(--tx3);letter-spacing:0;font-weight:400;text-transform:none">— ${funcs.filter(f=>f.ativo).length} ativo${funcs.filter(f=>f.ativo).length!==1?'s':''} · ${fmt(totalCargo)}/mês</span></div>
+      <div class="card">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Nome</th><th>Entrada</th><th class="ct">Pag.</th><th style="text-align:right">Salário</th><th>Obs</th><th class="ct">Ativo?</th><th></th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+    container.appendChild(section);
+  });
+
+  // Update fixas KPI
+  updateKPIs();
+}
+
 // ── CANCELOU ──────────────────────────────────────────
 function toggleCancelou(key, chk, squadN, type){
   if(!renovState[key]) renovState[key]={renovou:false,valor:0,data:''};
@@ -1353,6 +1498,7 @@ renderSquad(1);
 renderSquad(2);
 renderNexus();
 renderHub();
+renderRH();
 renderFixas();
 renderReceber();
 loadFromSheets();
