@@ -589,7 +589,7 @@ async function loadAllDataFromSheets(){
     // Restore each key to localStorage if not already set
     const keys = ['av_squad1','av_squad2','av_nexus','av_fixas2','av_receber','av_renov','av_caixa'];
     keys.forEach(key => {
-      if(data[key] !== undefined && !localStorage.getItem(key)){
+      if(data[key] !== undefined){
         localStorage.setItem(key, JSON.stringify(data[key]));
       }
     });
@@ -1169,7 +1169,7 @@ function salvarCaixa(){
   const val = parseFloat(document.getElementById('caixaInput').value);
   if(isNaN(val) || val < 0){ showToast('Valor inválido','er'); return; }
   CAIXA_BASE = val;
-  localStorage.setItem('av_caixa', val);
+  saveLocal('av_caixa', val);
   document.getElementById('caixaAtualDisp').textContent = fmt(val);
   document.getElementById('caixaInput').value = '';
   updateKPIs();
