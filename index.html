@@ -2,6 +2,9 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Aventus · Dashboard Financeiro</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
@@ -194,6 +197,7 @@
       <button class="nav-btn" onclick="nav('squad1',this)"><span class="nav-icon">◈</span>Squad 1</button>
       <button class="nav-btn" onclick="nav('squad2',this)"><span class="nav-icon">◈</span>Squad 2</button>
       <button class="nav-btn" onclick="nav('nexus',this)"><span class="nav-icon">⚡</span>Nexus</button>
+      <button class="nav-btn" onclick="nav('hub',this)"><span class="nav-icon">◉</span>Hub</button>
     </nav>
     <div class="sidebar-foot">Grupo Aventus_</div>
   </aside>
@@ -226,14 +230,11 @@
         <div class="nav-group">Gestão</div>
         <button class="nav-btn" onclick="nav('receber',this);toggleMobileMenu()"><span class="nav-icon">◎</span>A Receber</button>
         <button class="nav-btn" onclick="nav('fixas',this);toggleMobileMenu()"><span class="nav-icon">📌</span>Contas Fixas</button>
-        <div class="nav-group">Ferramentas</div>
-      <button class="nav-btn" onclick="nav('planos',this)"><span class="nav-icon">⚡</span>Planos de Ação</button>
-      <div class="nav-group">Carteiras</div>
+        <div class="nav-group">Carteiras</div>
         <button class="nav-btn" onclick="nav('squad1',this);toggleMobileMenu()"><span class="nav-icon">◈</span>Squad 1</button>
         <button class="nav-btn" onclick="nav('squad2',this);toggleMobileMenu()"><span class="nav-icon">◈</span>Squad 2</button>
-        <button class="nav-btn" onclick="nav('planos',this);toggleMobileMenu()"><span class="nav-icon">◆</span>Planos de Ação</button>
-        <div class="nav-group">Carteiras</div>
         <button class="nav-btn" onclick="nav('nexus',this);toggleMobileMenu()"><span class="nav-icon">⚡</span>Nexus</button>
+        <button class="nav-btn" onclick="nav('hub',this);toggleMobileMenu()"><span class="nav-icon">◉</span>Hub</button>
       </div>
     </div>
 
@@ -499,6 +500,38 @@
           </div>
         </div>
       </div>
+
+      <!-- ── HUB ── -->
+      <div class="page" id="page-hub">
+        <div class="sec-title">KPIs Hub</div>
+        <div class="g3" id="kpi-hub"></div>
+        <div class="sec-title" style="margin-top:20px">Adicionar Cliente</div>
+        <div class="card" style="margin-bottom:14px">
+          <div class="squad-add">
+            <div class="fg"><label>Nome do Cliente</label><input type="text" id="hubNome" placeholder="Ex: Nome do cliente"></div>
+            <div class="fg sm"><label>Dia Renovação</label><input type="number" id="hubDia" placeholder="Ex: 10" min="1" max="31"></div>
+            <div class="fg sm"><label>Mensalidade (R$)</label><input type="number" id="hubVal" placeholder="0,00"></div>
+            <button class="btn-main" onclick="addHubClient()">+ Adicionar</button>
+          </div>
+          <div style="margin-top:10px">
+            <div class="fg"><label>Observação (opcional)</label><input type="text" id="hubObs" placeholder="Ex: Plano anual, cliente VIP..."></div>
+          </div>
+        </div>
+        <div class="sec-title">Clientes & Renovações</div>
+        <div class="card">
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Cliente</th><th>Observação</th><th class="ct">Dia</th><th style="text-align:right">Previsto</th><th class="ct">Renovou?</th><th style="text-align:right">Valor Real</th><th class="ct">Data</th><th></th></tr></thead>
+              <tbody id="tb-hub"></tbody>
+            </table>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:14px;padding-top:12px;border-top:1px solid var(--bd)">
+            <div class="lbl">Total renovado no mês</div>
+            <div style="font-family:'Space Mono',monospace;font-weight:700;color:var(--gr)" id="tot-hub">R$ 0,00</div>
+          </div>
+        </div>
+      </div>
+
     </div><!-- /content -->
   </main>
 </div>
@@ -528,6 +561,8 @@ let squad1 = JSON.parse(localStorage.getItem('av_squad1') || 'null') || [
   {id:21,nome:'Moldando Inox',dia:27,val:2000},{id:22,nome:'Sapore & Art',dia:30,val:1500}
 ];
 let squad2 = JSON.parse(localStorage.getItem('av_squad2') || '[]');
+let hubClients = JSON.parse(localStorage.getItem('av_hub') || '[]');
+
 let nexusClients = JSON.parse(localStorage.getItem('av_nexus') || 'null') || [
   {id:1,nome:'Invias Guilherme',dia:8,val:297},{id:2,nome:'Hevelem',dia:10,val:497},
   {id:3,nome:'Bravvi',dia:26,val:297},{id:4,nome:'Eletroscooter',dia:27,val:197},
@@ -587,7 +622,7 @@ async function loadAllDataFromSheets(){
     if(!d.ok) return;
     const data = d.data;
     // Restore each key to localStorage if not already set
-    const keys = ['av_squad1','av_squad2','av_nexus','av_fixas2','av_receber','av_renov','av_caixa'];
+    const keys = ['av_squad1','av_squad2','av_nexus','av_hub','av_fixas2','av_receber','av_renov','av_caixa'];
     keys.forEach(key => {
       if(data[key] !== undefined){
         localStorage.setItem(key, JSON.stringify(data[key]));
@@ -595,6 +630,7 @@ async function loadAllDataFromSheets(){
     });
     // Reload state from localStorage
     squad1 = JSON.parse(localStorage.getItem('av_squad1') || 'null') || squad1;
+    hubClients = JSON.parse(localStorage.getItem('av_hub') || '[]');
     squad2 = JSON.parse(localStorage.getItem('av_squad2') || '[]');
     nexusClients = JSON.parse(localStorage.getItem('av_nexus') || 'null') || nexusClients;
     fixas = JSON.parse(localStorage.getItem('av_fixas2') || 'null') || fixas;
@@ -610,7 +646,7 @@ async function loadAllDataFromSheets(){
 }
 
 // ── NAV ───────────────────────────────────────────────
-const pageTitles={dashboard:'Dashboard',lancamentos:'Lançamentos',receber:'A Receber',fixas:'Contas Fixas',squad1:'Squad 1',squad2:'Squad 2',nexus:'Nexus',planos:'Planos de Ação'};
+const pageTitles={dashboard:'Dashboard',lancamentos:'Lançamentos',receber:'A Receber',fixas:'Contas Fixas',squad1:'Squad 1',squad2:'Squad 2',nexus:'Nexus',hub:'Hub'};
 function nav(name,btn){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
@@ -863,7 +899,12 @@ function renderSquad(n){
 
   const tb=document.getElementById(tbId); tb.innerHTML='';
   let totRen=0;
-  clients.forEach(c=>{
+  const sorted = [...clients].sort((a,b)=>{
+    const da = typeof a.dia==='number'?a.dia:99;
+    const db = typeof b.dia==='number'?b.dia:99;
+    return da-db;
+  });
+  sorted.forEach(c=>{
     const key=prefix+'_'+c.id;
     const st=renovState[key]||{renovou:false,valor:c.val,data:''};
     if(st.renovou) totRen+=parseFloat(st.valor||c.val);
@@ -894,7 +935,12 @@ function renderNexus(){
 
   const tb=document.getElementById('tb-nexus'); tb.innerHTML='';
   let totRen=0;
-  nexusClients.forEach(c=>{
+  const sortedNx = [...nexusClients].sort((a,b)=>{
+    const da = typeof a.dia==='number'?a.dia:99;
+    const db = typeof b.dia==='number'?b.dia:99;
+    return da-db;
+  });
+  sortedNx.forEach(c=>{
     const key=prefix+'_'+c.id;
     const st=renovState[key]||{renovou:false,valor:c.val,data:''};
     if(st.renovou) totRen+=parseFloat(st.valor||c.val);
@@ -1158,6 +1204,90 @@ function renderPlanoHistorico(){
     </div>`).join('');
 }
 
+
+// ── HUB ───────────────────────────────────────────────
+function addHubClient(){
+  const nome=document.getElementById('hubNome').value.trim();
+  const dia=parseInt(document.getElementById('hubDia').value)||'—';
+  const val=parseFloat(document.getElementById('hubVal').value);
+  const obs=document.getElementById('hubObs').value.trim();
+  if(!nome||isNaN(val)||val<=0){ showToast('Preencha nome e valor','er'); return; }
+  hubClients.push({id:uid(),nome,dia,val,obs});
+  saveLocal('av_hub',hubClients);
+  document.getElementById('hubNome').value='';
+  document.getElementById('hubDia').value='';
+  document.getElementById('hubVal').value='';
+  document.getElementById('hubObs').value='';
+  renderHub();
+  showToast('Cliente adicionado ao Hub');
+}
+
+function removeHubClient(id){
+  hubClients=hubClients.filter(c=>c.id!==id);
+  saveLocal('av_hub',hubClients);
+  delete renovState['hub_'+id];
+  saveLocal('av_renov',renovState);
+  renderHub();
+}
+
+function renderHub(){
+  const prefix='hub';
+  const total=hubClients.reduce((a,c)=>a+c.val,0);
+  const renovado=hubClients.reduce((a,c)=>{ const st=renovState[prefix+'_'+c.id]; return a+(st&&st.renovou?parseFloat(st.valor||c.val):0); },0);
+  document.getElementById('kpi-hub').innerHTML=`
+    <div class="card hero"><div class="lbl">Carteira Total</div><div class="val or sm">${fmt(total)}</div><div class="sub">${hubClients.length} clientes</div></div>
+    <div class="card ok"><div class="lbl">Renovado no Mês</div><div class="val gr sm">${fmt(renovado)}</div><div class="sub">Confirmado</div></div>
+    <div class="card"><div class="lbl">Ticket Médio</div><div class="val sm">${hubClients.length?fmt(total/hubClients.length):'R$ 0,00'}</div><div class="sub">Por cliente</div></div>`;
+
+  const tb=document.getElementById('tb-hub'); tb.innerHTML='';
+  let totRen=0;
+  const sorted=[...hubClients].sort((a,b)=>{
+    const da=typeof a.dia==='number'?a.dia:99;
+    const db=typeof b.dia==='number'?b.dia:99;
+    return da-db;
+  });
+  sorted.forEach(c=>{
+    const key=prefix+'_'+c.id;
+    const st=renovState[key]||{renovou:false,valor:c.val,data:''};
+    if(st.renovou) totRen+=parseFloat(st.valor||c.val);
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td class="nm"><span class="dot"></span>${c.nome}</td>
+      <td style="color:var(--tx3);font-size:11px;max-width:140px">${c.obs||'—'}</td>
+      <td class="ct" style="color:var(--tx3)">${c.dia}</td>
+      <td class="vl">${fmt(c.val)}</td>
+      <td class="ct"><label class="chk-wrap" style="justify-content:center"><input type="checkbox" ${st.renovou?'checked':''} onchange="toggleRenovHub('${key}','${c.nome}',${c.val},this)"></label></td>
+      <td style="text-align:right"><input class="renov-input" id="rv_${key}" type="number" value="${st.valor||c.val}" ${!st.renovou?'disabled':''} onchange="updateRenovValHub('${key}')"></td>
+      <td class="ct" style="color:var(--tx3);font-size:11px">${st.data||'—'}</td>
+      <td class="ct"><button class="rm-btn" onclick="removeHubClient(${c.id})">✕</button></td>`;
+    tb.appendChild(tr);
+  });
+  document.getElementById('tot-hub').textContent=fmt(totRen);
+  updateKPIs();
+}
+
+function toggleRenovHub(key,nome,valPrev,chk){
+  const valInput=document.getElementById('rv_'+key);
+  const val=parseFloat(valInput.value)||valPrev;
+  renovState[key]={renovou:chk.checked,valor:val,data:chk.checked?todayStr():''};
+  saveLocal('av_renov',renovState);
+  valInput.disabled=!chk.checked;
+  if(chk.checked){
+    const entry={desc:'Renovação Hub — '+nome,val,tipo:'entrada',cat:'Hub',date:todayStr(),id:uid()};
+    entries.unshift(entry);
+    saveToSheets(entry);
+    showToast(nome+' renovado no Hub!');
+  }
+  renderHub(); renderAll();
+}
+
+function updateRenovValHub(key){
+  const val=parseFloat(document.getElementById('rv_'+key).value)||0;
+  if(renovState[key]) renovState[key].valor=val;
+  saveLocal('av_renov',renovState);
+  renderHub();
+}
+
 // ── MOBILE MENU ──────────────────────────────────────
 function toggleMobileMenu(){
   document.getElementById('mobileMenu').classList.toggle('show');
@@ -1185,6 +1315,7 @@ loadAllDataFromSheets();
 renderSquad(1);
 renderSquad(2);
 renderNexus();
+renderHub();
 renderFixas();
 renderReceber();
 loadFromSheets();
