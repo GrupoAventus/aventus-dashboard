@@ -594,7 +594,11 @@
           
           <div class="fg" style="margin-bottom:14px">
             <label>Nome do próximo mês</label>
-            <input type="text" id="viraNovoMes" placeholder="Ex: Julho 2025" style="width:100%;background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:10px 14px;font-size:13px;color:var(--tx);font-family:system-ui;outline:none">
+            <input type="text" id="viraNovoMes" placeholder="Ex: Julho 2026" style="width:100%;background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:10px 14px;font-size:13px;color:var(--tx);font-family:system-ui;outline:none">
+          </div>
+          <div class="fg" style="margin-bottom:14px">
+            <label>Meta do mês (R$)</label>
+            <input type="number" id="viraNovoMeta" placeholder="Ex: 50000" style="width:100%;background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:10px 14px;font-size:13px;color:var(--tx);font-family:system-ui;outline:none">
           </div>
 
           <div style="background:var(--bg3);border:1px solid var(--bd);border-radius:8px;padding:14px;margin-bottom:20px;font-size:12px;color:var(--tx2)">
@@ -626,7 +630,7 @@
 const SHEET_URL = 'https://script.google.com/macros/s/AKfycbztLmvbk0qx2KkAcRwoHwb5ar1C6Gldhd4GtsCy1BBJcYI4F-2YsStBotkBJ8Dj3xdy/exec';
 const _caixaRaw = localStorage.getItem('av_caixa');
 let CAIXA_BASE = _caixaRaw ? parseFloat(JSON.parse(_caixaRaw)) : 22704;
-const META = 50000;
+let META = parseFloat(localStorage.getItem('av_meta') || '50000');
 let currentMonth = localStorage.getItem('av_current_month') || 'Junho 2025';
 let allMonths = JSON.parse(localStorage.getItem('av_all_months') || '{}');
 const DIAS_MES = 30;
@@ -757,7 +761,7 @@ function initCalendar(){
   document.getElementById('calWeek').textContent = weekdays[now.getDay()];
   document.getElementById('calProgress').textContent = `Dia ${day} de ${DIAS_MES}`;
   document.getElementById('dateBadge').textContent = now.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'});
-  document.getElementById('metaMes').textContent = months[now.getMonth()];
+  // meta mes updated dynamically
   const savedMonth = localStorage.getItem('av_current_month');
 document.getElementById('monthBadge').textContent = savedMonth ? savedMonth.toUpperCase() : (months[now.getMonth()].toUpperCase() + ' ' + now.getFullYear());
   document.getElementById('metaDayInfo').textContent = `Dia ${day} de ${DIAS_MES}`;
@@ -1127,8 +1131,8 @@ function updateKPIs(){
   const fixasTotal = fixas.reduce((a,f)=>a+f.val,0);
   document.getElementById('k-fixas').textContent = fmt(fixasTotal);
 
-  // Saldo projetado = caixa + a receber - fixas
-  const projetado = CAIXA_BASE + aReceberTotal - fixasTotal;
+  // Saldo projetado = saldo bruto + a receber - fixas
+  const projetado = saldo + aReceberTotal - fixasTotal;
   document.getElementById('k-projetado').textContent = fmt(projetado);
   document.getElementById('k-projetado').className = 'val yw sm';
   // ADS total
@@ -1138,6 +1142,10 @@ function updateKPIs(){
 
   // Coletado = soma de todas as entradas (meta)
   document.getElementById('k-coletado').textContent = fmt(pos);
+
+  // Update meta display
+  const metaDisp = document.getElementById('metaValDisp');
+  if(metaDisp) metaDisp.textContent = fmt(META);
 
   // Meta progress
   const pct = Math.min((pos/META)*100, 100);
@@ -1534,7 +1542,8 @@ function saveCurrentMonthData(){
     receber: receber,
     renovState: renovState,
     rhFuncs: rhFuncs,
-    caixa: CAIXA_BASE
+    caixa: CAIXA_BASE,
+    meta: META
   };
   localStorage.setItem('av_months', JSON.stringify(months));
   // Sync to Sheets
@@ -1564,6 +1573,8 @@ function loadMonthData(monthName){
   renovState = data.renovState || {};
   rhFuncs = data.rhFuncs || [];
   CAIXA_BASE = data.caixa || 22704;
+  META = data.meta || META;
+  localStorage.setItem('av_meta', META);
 
   localStorage.setItem('av_active_month', monthName);
 
@@ -1648,6 +1659,7 @@ function confirmarVirada(){
   const novasFixas = JSON.parse(JSON.stringify(fixas)).map(f=>({...f, pago:false}));
 
   // Criar novo mês
+  const novoMeta = parseFloat(document.getElementById('viraNovoMeta').value) || META;
   months[novoMes] = {
     entries: [],
     squad1: novoSquad1,
@@ -1658,7 +1670,8 @@ function confirmarVirada(){
     receber: [],
     renovState: {},
     rhFuncs: JSON.parse(JSON.stringify(rhFuncs)),
-    caixa: novoCaixa
+    caixa: novoCaixa,
+    meta: novoMeta
   };
 
   localStorage.setItem('av_months', JSON.stringify(months));
@@ -1743,6 +1756,8 @@ function initMonthSystem(){
     renovState = activeData.renovState || {};
     rhFuncs = activeData.rhFuncs || rhFuncs;
     CAIXA_BASE = activeData.caixa || CAIXA_BASE;
+    META = activeData.meta || META;
+    localStorage.setItem('av_meta', META);
   }
 
   renderMonthTabs();
