@@ -201,6 +201,8 @@
       <button class="nav-btn" onclick="nav('hub',this)"><span class="nav-icon">◉</span>Hub</button>
       <div class="nav-group">Equipe</div>
       <button class="nav-btn" onclick="nav('rh',this)"><span class="nav-icon">👥</span>RH</button>
+      <div class="nav-group">Histórico</div>
+      <button class="nav-btn" onclick="nav('relatorios',this)"><span class="nav-icon">📊</span>Relatórios</button>
     </nav>
     <div class="sidebar-foot">Grupo Aventus_</div>
   </aside>
@@ -215,6 +217,8 @@
       <div class="topbar-right">
         <div class="date-badge" id="dateBadge">—</div>
         <button class="btn-sm" onclick="exportCSV()">↓ CSV</button>
+        <button class="btn-sm" onclick="nav('relatorios',null)" style="color:var(--or);border-color:var(--or3)">📊 DRE</button>
+        <button class="btn-sm" onclick="showViradaMes()" style="color:var(--yw);border-color:#facc1544">🔄 Virar Mês</button>
         <button class="btn-sm" onclick="loadFromSheets()">↺ Sync</button>
       </div>
     </div>
@@ -240,6 +244,8 @@
         <button class="nav-btn" onclick="nav('hub',this);toggleMobileMenu()"><span class="nav-icon">◉</span>Hub</button>
         <div class="nav-group">Equipe</div>
         <button class="nav-btn" onclick="nav('rh',this);toggleMobileMenu()"><span class="nav-icon">👥</span>RH</button>
+        <div class="nav-group">Histórico</div>
+        <button class="nav-btn" onclick="nav('relatorios',this);toggleMobileMenu()"><span class="nav-icon">📊</span>Relatórios</button>
       </div>
     </div>
 
@@ -316,9 +322,9 @@
             <div class="sub">Total do mês</div>
           </div>
           <div class="card">
-            <div class="lbl">ADS / Dia</div>
-            <div class="val sm">R$ 250</div>
-            <div class="sub">Meta: R$ 366/dia</div>
+            <div class="lbl">ADS (Mês)</div>
+            <div class="val sm" id="k-ads">R$ 0,00</div>
+            <div class="sub">Total investido em ADS</div>
           </div>
         </div>
 
@@ -578,6 +584,44 @@
 
       </div>
 
+
+      <!-- ── RELATÓRIOS ── -->
+      <div class="page" id="page-relatorios">
+        <div class="sec-title">Histórico de Meses</div>
+        <div id="relatorios-list"><div class="empty">Nenhum mês fechado ainda.</div></div>
+      </div>
+
+      <!-- MODAL VIRADA DE MÊS -->
+      <div id="modalVirada" style="display:none;position:fixed;inset:0;background:#000c;z-index:100;align-items:center;justify-content:center">
+        <div style="background:var(--bg2);border:1px solid var(--or3);border-radius:14px;padding:32px;max-width:480px;width:90%;max-height:90vh;overflow-y:auto">
+          <div style="font-family:system-ui;font-size:18px;font-weight:700;margin-bottom:6px">🔄 Virar Mês</div>
+          <div style="font-size:13px;color:var(--tx2);margin-bottom:20px">Os dados de <strong id="viraMesAtual" style="color:var(--or)">Junho</strong> serão salvos como relatório. O novo mês começa com o saldo bruto atual.</div>
+          
+          <div class="fg" style="margin-bottom:14px">
+            <label>Nome do próximo mês</label>
+            <input type="text" id="viraNovoMes" placeholder="Ex: Julho 2025" style="width:100%;background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:10px 14px;font-size:13px;color:var(--tx);font-family:system-ui;outline:none">
+          </div>
+
+          <div style="background:var(--bg3);border:1px solid var(--bd);border-radius:8px;padding:14px;margin-bottom:20px;font-size:12px;color:var(--tx2)">
+            <div style="font-weight:700;color:var(--tx);margin-bottom:8px">O que será mantido:</div>
+            <div style="margin-bottom:4px">✅ Clientes dos Squads, Nexus e Hub</div>
+            <div style="margin-bottom:4px">✅ Contas Fixas</div>
+            <div style="margin-bottom:4px">✅ Equipe RH</div>
+            <div style="margin-bottom:8px">✅ Saldo do caixa = Saldo Bruto atual</div>
+            <div style="font-weight:700;color:var(--tx);margin-bottom:8px">O que será resetado:</div>
+            <div style="margin-bottom:4px">🔄 Renovações (todas desmarcadas)</div>
+            <div style="margin-bottom:4px">🗑️ Lançamentos do mês</div>
+            <div style="margin-bottom:4px">🗑️ Contas a Receber</div>
+            <div>🗑️ Clientes marcados como "Não renovou" serão removidos</div>
+          </div>
+
+          <div style="display:flex;gap:10px">
+            <button onclick="document.getElementById('modalVirada').style.display='none'" style="flex:1;background:transparent;color:var(--tx2);border:1px solid var(--bd);border-radius:7px;padding:10px;font-family:system-ui;font-weight:600;cursor:pointer">Cancelar</button>
+            <button onclick="confirmarVirada()" style="flex:1;background:var(--or);color:#fff;border:none;border-radius:7px;padding:10px;font-family:system-ui;font-weight:700;cursor:pointer">✓ Confirmar Virada</button>
+          </div>
+        </div>
+      </div>
+
     </div><!-- /content -->
   </main>
 </div>
@@ -588,6 +632,8 @@ const SHEET_URL = 'https://script.google.com/macros/s/AKfycbztLmvbk0qx2KkAcRwoHw
 const _caixaRaw = localStorage.getItem('av_caixa');
 let CAIXA_BASE = _caixaRaw ? parseFloat(JSON.parse(_caixaRaw)) : 22704;
 const META = 50000;
+let currentMonth = localStorage.getItem('av_current_month') || 'Junho 2025';
+let allMonths = JSON.parse(localStorage.getItem('av_all_months') || '{}');
 const DIAS_MES = 30;
 
 // ── STATE ─────────────────────────────────────────────
@@ -670,7 +716,7 @@ async function loadAllDataFromSheets(){
     if(!d.ok) return;
     const data = d.data;
     // Restore each key to localStorage if not already set
-    const keys = ['av_squad1','av_squad2','av_nexus','av_hub','av_rh','av_fixas2','av_receber','av_renov','av_caixa'];
+    const keys = ['av_squad1','av_squad2','av_nexus','av_hub','av_rh','av_fixas2','av_receber','av_renov','av_caixa','av_all_months'];
     keys.forEach(key => {
       if(data[key] !== undefined){
         localStorage.setItem(key, JSON.stringify(data[key]));
@@ -696,7 +742,7 @@ async function loadAllDataFromSheets(){
 }
 
 // ── NAV ───────────────────────────────────────────────
-const pageTitles={dashboard:'Dashboard',lancamentos:'Lançamentos',receber:'A Receber',fixas:'Contas Fixas',squad1:'Squad 1',squad2:'Squad 2',nexus:'Nexus',hub:'Hub',rh:'RH'};
+const pageTitles={dashboard:'Dashboard',lancamentos:'Lançamentos',receber:'A Receber',fixas:'Contas Fixas',squad1:'Squad 1',squad2:'Squad 2',nexus:'Nexus',hub:'Hub',rh:'RH',relatorios:'Relatórios / DRE'};
 function nav(name,btn){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
@@ -717,7 +763,8 @@ function initCalendar(){
   document.getElementById('calProgress').textContent = `Dia ${day} de ${DIAS_MES}`;
   document.getElementById('dateBadge').textContent = now.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'});
   document.getElementById('metaMes').textContent = months[now.getMonth()];
-  document.getElementById('monthBadge').textContent = months[now.getMonth()].toUpperCase() + ' ' + now.getFullYear();
+  const savedMonth = localStorage.getItem('av_current_month');
+document.getElementById('monthBadge').textContent = savedMonth ? savedMonth.toUpperCase() : (months[now.getMonth()].toUpperCase() + ' ' + now.getFullYear());
   document.getElementById('metaDayInfo').textContent = `Dia ${day} de ${DIAS_MES}`;
 }
 
@@ -1089,6 +1136,10 @@ function updateKPIs(){
   const projetado = CAIXA_BASE + aReceberTotal - fixasTotal;
   document.getElementById('k-projetado').textContent = fmt(projetado);
   document.getElementById('k-projetado').className = 'val yw sm';
+  // ADS total
+  const adsTotal = entries.filter(e=>e.cat==='ADS'&&e.tipo==='saida').reduce((a,e)=>a+e.val,0);
+  const adsEl = document.getElementById('k-ads');
+  if(adsEl) adsEl.textContent = fmt(adsTotal);
 
   // Coletado = soma de todas as entradas (meta)
   document.getElementById('k-coletado').textContent = fmt(pos);
@@ -1461,6 +1512,135 @@ function renderRH(){
   updateKPIs();
 }
 
+
+// ── SISTEMA DE MESES ──────────────────────────────────
+function showViradaMes(){
+  const mesAtual = localStorage.getItem('av_current_month') || 'Junho 2025';
+  document.getElementById('viraMesAtual').textContent = mesAtual;
+  document.getElementById('modalVirada').style.display = 'flex';
+}
+
+function confirmarVirada(){
+  const novoMes = document.getElementById('viraNovoMes').value.trim();
+  if(!novoMes){ showToast('Digite o nome do próximo mês','er'); return; }
+
+  const mesAtual = localStorage.getItem('av_current_month') || 'Junho 2025';
+
+  // Calcular saldo bruto atual para usar como caixa do novo mês
+  let pos=0, neg=0;
+  entries.forEach(e=>{ if(e.tipo==='entrada') pos+=e.val; else neg+=e.val; });
+  const novoCaixa = CAIXA_BASE + pos - neg;
+
+  // Salvar snapshot do mês atual
+  const snapshot = {
+    mes: mesAtual,
+    data: new Date().toLocaleDateString('pt-BR'),
+    caixa: CAIXA_BASE,
+    saldoBruto: novoCaixa,
+    entradas: pos,
+    saidas: neg,
+    entries: [...entries],
+    squad1: JSON.parse(JSON.stringify(squad1)),
+    squad2: JSON.parse(JSON.stringify(squad2)),
+    nexusClients: JSON.parse(JSON.stringify(nexusClients)),
+    hubClients: JSON.parse(JSON.stringify(hubClients)),
+    fixas: JSON.parse(JSON.stringify(fixas)),
+    receber: JSON.parse(JSON.stringify(receber)),
+    renovState: JSON.parse(JSON.stringify(renovState)),
+    rhFuncs: JSON.parse(JSON.stringify(rhFuncs))
+  };
+
+  // Salvar no histórico
+  const allMonths = JSON.parse(localStorage.getItem('av_all_months') || '{}');
+  allMonths[mesAtual] = snapshot;
+  localStorage.setItem('av_all_months', JSON.stringify(allMonths));
+  saveLocal('av_all_months', allMonths);
+
+  // Remover clientes que não renovaram dos squads/nexus/hub
+  const filterCancelados = (clients, prefix) => clients.filter(c => {
+    const st = renovState[prefix+'_'+c.id];
+    return !(st && st.cancelou);
+  });
+
+  squad1 = filterCancelados(squad1, 's1');
+  squad2 = filterCancelados(squad2, 's2');
+  nexusClients = filterCancelados(nexusClients, 'nx');
+  hubClients = filterCancelados(hubClients, 'hub');
+
+  // Resetar renovações
+  renovState = {};
+
+  // Resetar lançamentos e contas a receber
+  entries = [];
+  receber = receber.filter(r => false); // limpar tudo
+
+  // Novo caixa = saldo bruto do mês anterior
+  CAIXA_BASE = novoCaixa;
+
+  // Resetar fixas (desmarcar pagas)
+  fixas.forEach(f => f.pago = false);
+
+  // Salvar novo estado
+  saveLocal('av_squad1', squad1);
+  saveLocal('av_squad2', squad2);
+  saveLocal('av_nexus', nexusClients);
+  saveLocal('av_hub', hubClients);
+  saveLocal('av_renov', renovState);
+  saveLocal('av_entries_cache', entries);
+  saveLocal('av_receber', receber);
+  saveLocal('av_fixas2', fixas);
+  saveLocal('av_caixa', novoCaixa);
+  localStorage.setItem('av_current_month', novoMes);
+  localStorage.setItem('av_entries_cache', JSON.stringify(entries));
+
+  // Atualizar badge do mês
+  document.getElementById('monthBadge').textContent = novoMes.toUpperCase();
+
+  // Fechar modal e re-renderizar tudo
+  document.getElementById('modalVirada').style.display = 'none';
+  renderSquad(1); renderSquad(2); renderNexus(); renderHub();
+  renderFixas(); renderReceber(); renderRH(); renderAll();
+  renderRelatorios();
+  document.getElementById('caixaAtualDisp').textContent = fmt(CAIXA_BASE);
+
+  showToast('✓ Mês virado! Bem-vindo a ' + novoMes);
+  nav('dashboard', null);
+}
+
+function renderRelatorios(){
+  const allMonths = JSON.parse(localStorage.getItem('av_all_months') || '{}');
+  const el = document.getElementById('relatorios-list');
+  const meses = Object.keys(allMonths).reverse();
+  if(meses.length === 0){
+    el.innerHTML = '<div class="empty">Nenhum mês fechado ainda. Use o botão "Virar Mês" ao final do mês.</div>';
+    return;
+  }
+  el.innerHTML = meses.map(mes => {
+    const s = allMonths[mes];
+    const resultado = s.entradas - s.saidas;
+    return `
+    <div style="margin-bottom:20px">
+      <div class="sec-title">${mes}</div>
+      <div class="g4" style="margin-bottom:12px">
+        <div class="card"><div class="lbl">Saldo Bruto Final</div><div class="val or sm">${fmt(s.saldoBruto)}</div></div>
+        <div class="card ok"><div class="lbl">Total Entradas</div><div class="val gr sm">${fmt(s.entradas)}</div></div>
+        <div class="card bad"><div class="lbl">Total Saídas</div><div class="val rd sm">${fmt(s.saidas)}</div></div>
+        <div class="card ${resultado>=0?'ok':'bad'}"><div class="lbl">Resultado</div><div class="val ${resultado>=0?'gr':'rd'} sm">${resultado>=0?'+':'-'}${fmt(Math.abs(resultado))}</div></div>
+      </div>
+      <div class="card">
+        <div class="lbl" style="margin-bottom:12px">Lançamentos do mês (${s.entries.length})</div>
+        <div style="max-height:200px;overflow-y:auto">
+          ${s.entries.length ? s.entries.map(e=>`
+            <div class="eitem">
+              <div><div class="edesc">${e.desc}</div><div class="emeta">${e.date||''} · ${e.cat||''}</div></div>
+              <div class="${e.tipo==='entrada'?'epos':'eneg'}">${e.tipo==='entrada'?'+':'-'}${fmt(e.val)}</div>
+            </div>`).join('') : '<div class="empty">Sem lançamentos</div>'}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 // ── CANCELOU ──────────────────────────────────────────
 function toggleCancelou(key, chk, squadN, type){
   if(!renovState[key]) renovState[key]={renovou:false,valor:0,data:''};
@@ -1505,6 +1685,7 @@ renderHub();
 renderRH();
 renderFixas();
 renderReceber();
+renderRelatorios();
 loadFromSheets();
 </script>
 
