@@ -252,6 +252,7 @@
         <span style="font-size:10px;color:var(--tx3);letter-spacing:1px;text-transform:uppercase;font-weight:700">Mês</span>
         <select id="monthSelector" onchange="loadMonthData(this.value)" style="background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:6px 12px;font-size:12px;color:var(--or);font-family:system-ui;font-weight:700;outline:none;cursor:pointer">
         </select>
+        <button onclick="deleteMonth(getActiveMonth())" title="Apagar mês atual" style="background:none;border:1px solid var(--bd);border-radius:7px;padding:6px 10px;font-size:12px;color:var(--rd);font-family:system-ui;cursor:pointer">🗑️</button>
       </div>
       <div style="width:1px;height:20px;background:var(--bd)"></div>
       <div style="display:flex;align-items:center;gap:8px">
@@ -271,16 +272,11 @@
       <div class="page active" id="page-dashboard">
 
         <div class="sec-title">KPIs Principais</div>
-        <div class="g-kpi">
+        <div class="g-kpi" style="grid-template-columns:1.5fr 1fr">
           <div class="card ok">
             <div class="lbl">Saldo Bruto</div>
             <div class="val gr" id="k-saldo">R$ 0,00</div>
             <div class="sub">Caixa + entradas − saídas</div>
-          </div>
-          <div class="card yw">
-            <div class="lbl">Saldo Projetado</div>
-            <div class="val yw sm" id="k-projetado">R$ 0,00</div>
-            <div class="sub">Caixa + a receber − fixas</div>
           </div>
           <div class="card">
             <div class="lbl">Calendário</div>
@@ -1140,10 +1136,6 @@ function updateKPIs(){
   const fixasTotal = fixas.reduce((a,f)=>a+f.val,0);
   document.getElementById('k-fixas').textContent = fmt(fixasTotal);
 
-  // Saldo projetado = saldo bruto + a receber - fixas
-  const projetado = saldo + aReceberTotal - fixasTotal;
-  document.getElementById('k-projetado').textContent = fmt(projetado);
-  document.getElementById('k-projetado').className = 'val yw sm';
   // ADS total
   const adsTotal = entries.filter(e=>e.cat==='ADS'&&e.tipo==='saida').reduce((a,e)=>a+e.val,0);
   const adsEl = document.getElementById('k-ads');
@@ -1673,7 +1665,7 @@ function confirmarVirada(){
   const months = getAllMonths();
   if(months[novoMes]){ showToast('Esse mês já existe!','er'); return; }
 
-  // Save current month first
+  // Save current month first (enquanto av_active_month ainda aponta pro mês atual)
   saveCurrentMonthData();
 
   // Calculate novo caixa
@@ -1695,9 +1687,10 @@ function confirmarVirada(){
   // Resetar fixas (desmarcar pagas)
   const novasFixas = JSON.parse(JSON.stringify(fixas)).map(f=>({...f, pago:false}));
 
-  // Criar novo mês
+  // Criar novo mês — releitura de months (que já tem o mês atual salvo por saveCurrentMonthData)
+  const monthsAtualizado = getAllMonths();
   const novoMeta = parseFloat(document.getElementById('viraNovoMeta').value) || META;
-  months[novoMes] = {
+  monthsAtualizado[novoMes] = {
     entries: [],
     squad1: novoSquad1,
     squad2: novoSquad2,
@@ -1711,8 +1704,54 @@ function confirmarVirada(){
     meta: novoMeta
   };
 
-  localStorage.setItem('av_months', JSON.stringify(months));
+  localStorage.setItem('av_months', JSON.stringify(monthsAtualizado));
+
+  // Sync to Sheets
+  fetch('/sheets', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'saveData', key:'av_months', value:monthsAtualizado})
+  }).catch(e=>console.log(e));
+
+  // Fechar modal
+  document.getElementById('modalVirada').style.display = 'none';
+
+  // Agora sim: trocar o mês ativo e carregar o novo (sem re-salvar por cima)
+  entries = [];
+  squad1 = novoSquad1;
+  squad2 = novoSquad2;
+  nexusClients = novoNexus;
+  hubClients = novoHub;
+  fixas = novasFixas;
+  receber = [];
+  renovState = {};
+  rhFuncs = JSON.parse(JSON.stringify(rhFuncs));
+  CAIXA_BASE = novoCaixa;
+  META = novoMeta;
+  localStorage.setItem('av_meta', META);
   localStorage.setItem('av_active_month', novoMes);
+
+  renderAll();
+  renderSquad(1); renderSquad(2); renderNexus(); renderHub();
+  renderFixas(); renderReceber(); renderRH();
+  document.getElementById('monthBadge').textContent = novoMes.toUpperCase();
+  document.getElementById('caixaAtualDisp').textContent = fmt(CAIXA_BASE);
+  renderMonthTabs();
+  updateKPIs();
+
+  showToast('✓ ' + novoMes + ' criado! Bem-vindo ao novo mês.');
+}
+
+function deleteMonth(monthName){
+  const months = getAllMonths();
+  const keys = Object.keys(months);
+  if(keys.length <= 1){ showToast('Não é possível apagar o único mês existente','er'); return; }
+  if(!months[monthName]) return;
+
+  if(!confirm('Tem certeza que deseja apagar permanentemente "' + monthName + '"? Essa ação não pode ser desfeita.')) return;
+
+  delete months[monthName];
+  localStorage.setItem('av_months', JSON.stringify(months));
 
   // Sync to Sheets
   fetch('/sheets', {
@@ -1721,12 +1760,16 @@ function confirmarVirada(){
     body:JSON.stringify({action:'saveData', key:'av_months', value:months})
   }).catch(e=>console.log(e));
 
-  // Fechar modal
-  document.getElementById('modalVirada').style.display = 'none';
+  // Se o mês apagado era o ativo, carrega outro
+  if(getActiveMonth() === monthName){
+    const novoAtivo = Object.keys(months)[0];
+    localStorage.setItem('av_active_month', novoAtivo);
+    loadMonthData(novoAtivo);
+  } else {
+    renderMonthTabs();
+  }
 
-  // Carregar novo mês
-  loadMonthData(novoMes);
-  showToast('✓ ' + novoMes + ' criado! Bem-vindo ao novo mês.');
+  showToast('"' + monthName + '" foi apagado');
 }
 
 function initMonthSystem(){
