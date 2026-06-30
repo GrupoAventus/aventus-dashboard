@@ -645,8 +645,6 @@ const SHEET_URL = 'https://script.google.com/macros/s/AKfycbztLmvbk0qx2KkAcRwoHw
 const _caixaRaw = localStorage.getItem('av_caixa');
 let CAIXA_BASE = _caixaRaw ? parseFloat(JSON.parse(_caixaRaw)) : 22704;
 let META = parseFloat(localStorage.getItem('av_meta') || '50000');
-let currentMonth = localStorage.getItem('av_current_month') || 'Junho 2025';
-let allMonths = JSON.parse(localStorage.getItem('av_all_months') || '{}');
 const DIAS_MES = 30;
 
 // ── STATE ─────────────────────────────────────────────
@@ -775,9 +773,6 @@ function initCalendar(){
   document.getElementById('calWeek').textContent = weekdays[now.getDay()];
   document.getElementById('calProgress').textContent = `Dia ${day} de ${DIAS_MES}`;
   document.getElementById('dateBadge').textContent = now.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'});
-  // meta mes updated dynamically
-  const savedMonth = localStorage.getItem('av_current_month');
-document.getElementById('monthBadge').textContent = savedMonth ? savedMonth.toUpperCase() : (months[now.getMonth()].toUpperCase() + ' ' + now.getFullYear());
   document.getElementById('metaDayInfo').textContent = `Dia ${day} de ${DIAS_MES}`;
 }
 
@@ -1807,132 +1802,7 @@ function initMonthSystem(){
 }
 
 
-function showViradaMes(){
-  const mesAtual = localStorage.getItem('av_current_month') || 'Junho 2025';
-  document.getElementById('viraMesAtual').textContent = mesAtual;
-  document.getElementById('modalVirada').style.display = 'flex';
-}
-
-function confirmarVirada(){
-  const novoMes = document.getElementById('viraNovoMes').value.trim();
-  if(!novoMes){ showToast('Digite o nome do próximo mês','er'); return; }
-
-  const mesAtual = localStorage.getItem('av_current_month') || 'Junho 2025';
-
-  // Calcular saldo bruto atual para usar como caixa do novo mês
-  let pos=0, neg=0;
-  entries.forEach(e=>{ if(e.tipo==='entrada') pos+=e.val; else neg+=e.val; });
-  const novoCaixa = CAIXA_BASE + pos - neg;
-
-  // Salvar snapshot do mês atual
-  const snapshot = {
-    mes: mesAtual,
-    data: new Date().toLocaleDateString('pt-BR'),
-    caixa: CAIXA_BASE,
-    saldoBruto: novoCaixa,
-    entradas: pos,
-    saidas: neg,
-    entries: [...entries],
-    squad1: JSON.parse(JSON.stringify(squad1)),
-    squad2: JSON.parse(JSON.stringify(squad2)),
-    nexusClients: JSON.parse(JSON.stringify(nexusClients)),
-    hubClients: JSON.parse(JSON.stringify(hubClients)),
-    fixas: JSON.parse(JSON.stringify(fixas)),
-    receber: JSON.parse(JSON.stringify(receber)),
-    renovState: JSON.parse(JSON.stringify(renovState)),
-    rhFuncs: JSON.parse(JSON.stringify(rhFuncs))
-  };
-
-  // Salvar no histórico
-  const allMonths = JSON.parse(localStorage.getItem('av_all_months') || '{}');
-  allMonths[mesAtual] = snapshot;
-  localStorage.setItem('av_all_months', JSON.stringify(allMonths));
-  saveLocal('av_all_months', allMonths);
-
-  // Remover clientes que não renovaram dos squads/nexus/hub
-  const filterCancelados = (clients, prefix) => clients.filter(c => {
-    const st = renovState[prefix+'_'+c.id];
-    return !(st && st.cancelou);
-  });
-
-  squad1 = filterCancelados(squad1, 's1');
-  squad2 = filterCancelados(squad2, 's2');
-  nexusClients = filterCancelados(nexusClients, 'nx');
-  hubClients = filterCancelados(hubClients, 'hub');
-
-  // Resetar renovações
-  renovState = {};
-
-  // Resetar lançamentos e contas a receber
-  entries = [];
-  receber = receber.filter(r => false); // limpar tudo
-
-  // Novo caixa = saldo bruto do mês anterior
-  CAIXA_BASE = novoCaixa;
-
-  // Resetar fixas (desmarcar pagas)
-  fixas.forEach(f => f.pago = false);
-
-  // Salvar novo estado
-  saveLocal('av_squad1', squad1);
-  saveLocal('av_squad2', squad2);
-  saveLocal('av_nexus', nexusClients);
-  saveLocal('av_hub', hubClients);
-  saveLocal('av_renov', renovState);
-  saveLocal('av_entries_cache', entries);
-  saveLocal('av_receber', receber);
-  saveLocal('av_fixas2', fixas);
-  saveLocal('av_caixa', novoCaixa);
-  localStorage.setItem('av_current_month', novoMes);
-  localStorage.setItem('av_entries_cache', JSON.stringify(entries));
-
-  // Atualizar badge do mês
-  document.getElementById('monthBadge').textContent = novoMes.toUpperCase();
-
-  // Fechar modal e re-renderizar tudo
-  document.getElementById('modalVirada').style.display = 'none';
-  renderSquad(1); renderSquad(2); renderNexus(); renderHub();
-  renderFixas(); renderReceber(); renderRH(); renderAll();
-  renderRelatorios();
-  document.getElementById('caixaAtualDisp').textContent = fmt(CAIXA_BASE);
-
-  showToast('✓ Mês virado! Bem-vindo a ' + novoMes);
-  nav('dashboard', null);
-}
-
-function renderRelatorios(){
-  const allMonths = JSON.parse(localStorage.getItem('av_all_months') || '{}');
-  const el = document.getElementById('relatorios-list');
-  const meses = Object.keys(allMonths).reverse();
-  if(meses.length === 0){
-    el.innerHTML = '<div class="empty">Nenhum mês fechado ainda. Use o botão "Virar Mês" ao final do mês.</div>';
-    return;
-  }
-  el.innerHTML = meses.map(mes => {
-    const s = allMonths[mes];
-    const resultado = s.entradas - s.saidas;
-    return `
-    <div style="margin-bottom:20px">
-      <div class="sec-title">${mes}</div>
-      <div class="g4" style="margin-bottom:12px">
-        <div class="card"><div class="lbl">Saldo Bruto Final</div><div class="val or sm">${fmt(s.saldoBruto)}</div></div>
-        <div class="card ok"><div class="lbl">Total Entradas</div><div class="val gr sm">${fmt(s.entradas)}</div></div>
-        <div class="card bad"><div class="lbl">Total Saídas</div><div class="val rd sm">${fmt(s.saidas)}</div></div>
-        <div class="card ${resultado>=0?'ok':'bad'}"><div class="lbl">Resultado</div><div class="val ${resultado>=0?'gr':'rd'} sm">${resultado>=0?'+':'-'}${fmt(Math.abs(resultado))}</div></div>
-      </div>
-      <div class="card">
-        <div class="lbl" style="margin-bottom:12px">Lançamentos do mês (${s.entries.length})</div>
-        <div style="max-height:200px;overflow-y:auto">
-          ${s.entries.length ? s.entries.map(e=>`
-            <div class="eitem">
-              <div><div class="edesc">${e.desc}</div><div class="emeta">${e.date||''} · ${e.cat||''}</div></div>
-              <div class="${e.tipo==='entrada'?'epos':'eneg'}">${e.tipo==='entrada'?'+':'-'}${fmt(e.val)}</div>
-            </div>`).join('') : '<div class="empty">Sem lançamentos</div>'}
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-}
+// (funções antigas de virada de mês removidas — substituídas pelas versões corretas acima, que usam av_months)
 
 // ── CANCELOU ──────────────────────────────────────────
 function toggleCancelou(key, chk, squadN, type){
