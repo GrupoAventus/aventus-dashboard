@@ -217,7 +217,7 @@
         <div class="date-badge" id="dateBadge">—</div>
         <button class="btn-sm" onclick="exportCSV()">↓ CSV</button>
         <button class="btn-sm" onclick="showViradaMes()" style="color:var(--or);border-color:var(--or3)">+ Novo Mês</button>
-        <button class="btn-sm" onclick="loadFromSheets()">↺ Sync</button>
+        <button class="btn-sm" onclick="loadAllDataFromSheets()">↺ Sync</button>
       </div>
     </div>
 
@@ -722,29 +722,41 @@ async function loadAllDataFromSheets(){
     const d = await res.json();
     if(!d.ok) return;
     const data = d.data;
-    // Restore each key to localStorage if not already set
-    const keys = ['av_months','av_active_month'];
-    keys.forEach(key => {
-      if(data[key] !== undefined){
-        localStorage.setItem(key, JSON.stringify(data[key]));
-      }
-    });
-    // Reload state from localStorage
-    squad1 = JSON.parse(localStorage.getItem('av_squad1') || 'null') || squad1;
-    hubClients = JSON.parse(localStorage.getItem('av_hub') || '[]');
-    rhFuncs = JSON.parse(localStorage.getItem('av_rh') || '[]');
-    squad2 = JSON.parse(localStorage.getItem('av_squad2') || '[]');
-    nexusClients = JSON.parse(localStorage.getItem('av_nexus') || 'null') || nexusClients;
-    fixas = JSON.parse(localStorage.getItem('av_fixas2') || 'null') || fixas;
-    receber = JSON.parse(localStorage.getItem('av_receber') || 'null') || receber;
-    renovState = JSON.parse(localStorage.getItem('av_renov') || '{}');
-    const caixaRaw = localStorage.getItem('av_caixa');
-    CAIXA_BASE = caixaRaw ? parseFloat(JSON.parse(caixaRaw)) : 22704;
+
+    // Única fonte de verdade: av_months + av_active_month
+    if(data['av_months'] !== undefined){
+      localStorage.setItem('av_months', JSON.stringify(data['av_months']));
+    }
+    if(data['av_active_month'] !== undefined){
+      localStorage.setItem('av_active_month', JSON.stringify(data['av_active_month']).replace(/^"|"$/g,''));
+    }
+
+    // Carrega o mês ativo a partir de av_months (não de chaves antigas)
+    const months = getAllMonths();
+    const active = getActiveMonth();
+    const monthData = months[active];
+    if(monthData){
+      entries = monthData.entries || [];
+      squad1 = monthData.squad1 || squad1;
+      squad2 = monthData.squad2 || squad2;
+      nexusClients = monthData.nexusClients || nexusClients;
+      hubClients = monthData.hubClients || hubClients;
+      fixas = monthData.fixas || fixas;
+      receber = monthData.receber || receber;
+      renovState = monthData.renovState || {};
+      rhFuncs = monthData.rhFuncs || rhFuncs;
+      CAIXA_BASE = monthData.caixa || CAIXA_BASE;
+      META = monthData.meta || META;
+    }
+
     // Re-render everything
+    renderAll();
     renderSquad(1); renderSquad(2); renderNexus(); renderHub(); renderRH(); renderFixas(); renderReceber();
+    renderMonthTabs();
+    document.getElementById('monthBadge').textContent = active.toUpperCase();
     document.getElementById('caixaAtualDisp').textContent = fmt(CAIXA_BASE);
     updateKPIs();
-    showToast('Dados restaurados do Sheets');
+    showToast('Dados sincronizados do Sheets');
   } catch(e){ console.log('Load data error:',e); }
 }
 
@@ -815,7 +827,7 @@ async function addEntry(){
   const obs=document.getElementById('inObs').value.trim();
   const entry={desc,val,tipo,cat,obs,date:todayStr(),id:uid()};
   entries.unshift(entry);
-  await saveToSheets(entry);
+  saveCurrentMonthData();
   btn.textContent='+ Lançar'; btn.disabled=false;
   document.getElementById('inDesc').value='';
   document.getElementById('inVal').value='';
@@ -828,7 +840,7 @@ async function removeEntry(id){
   const entry=entries.find(e=>e.id===id);
   if(!entry) return;
   entries=entries.filter(e=>e.id!==id);
-  await deleteFromSheets(entry);
+  saveCurrentMonthData();
   renderAll();
   showToast('Lançamento removido');
 }
@@ -856,7 +868,7 @@ function toggleReceber(id){
   if(r.recebido){
     const entry={desc:'Recebido — '+r.desc,val:r.val,tipo:'entrada',cat:'A Receber',date:todayStr(),id:uid()};
     entries.unshift(entry);
-    saveToSheets(entry);
+    saveCurrentMonthData();
     showToast(r.desc+' marcado como recebido');
   }
   renderReceber(); renderAll();
@@ -906,7 +918,7 @@ function toggleFixa(id){
   if(f.pago){
     const entry={desc:'Conta Fixa — '+f.desc,val:f.val,tipo:'saida',cat:'Conta Fixa',date:todayStr(),id:uid()};
     entries.unshift(entry);
-    saveToSheets(entry);
+    saveCurrentMonthData();
     showToast(f.desc+' marcado como pago');
   }
   renderFixas(); renderAll();
@@ -1084,7 +1096,7 @@ function toggleRenov(key, nome, valPrev, chk, squadN){
   if(chk.checked){
     const entry={desc:'Renovação — '+nome,val,tipo:'entrada',cat:'Squad '+squadN,date:todayStr(),id:uid()};
     entries.unshift(entry);
-    saveToSheets(entry);
+    saveCurrentMonthData();
     showToast(nome+' renovado!');
   }
   renderSquad(squadN); renderAll();
@@ -1099,7 +1111,7 @@ function toggleRenovNexus(key, nome, valPrev, chk){
   if(chk.checked){
     const entry={desc:'Renovação Nexus — '+nome,val,tipo:'entrada',cat:'Nexus',date:todayStr(),id:uid()};
     entries.unshift(entry);
-    saveToSheets(entry);
+    saveCurrentMonthData();
     showToast(nome+' renovado no Nexus!');
   }
   renderNexus(); renderAll();
@@ -1421,7 +1433,7 @@ function toggleRenovHub(key,nome,valPrev,chk){
   if(chk.checked){
     const entry={desc:'Renovação Hub — '+nome,val,tipo:'entrada',cat:'Hub',date:todayStr(),id:uid()};
     entries.unshift(entry);
-    saveToSheets(entry);
+    saveCurrentMonthData();
     showToast(nome+' renovado no Hub!');
   }
   renderHub(); renderAll();
@@ -1929,7 +1941,7 @@ function salvarCaixa(){
   const val = parseFloat(document.getElementById('caixaInput').value);
   if(isNaN(val) || val < 0){ showToast('Valor inválido','er'); return; }
   CAIXA_BASE = val;
-  saveLocal('av_caixa', val);
+  saveCurrentMonthData();
   document.getElementById('caixaAtualDisp').textContent = fmt(val);
   document.getElementById('caixaInput').value = '';
   updateKPIs();
@@ -1940,17 +1952,26 @@ function salvarCaixa(){
 initCalendar();
 // Init caixa display
 document.getElementById('caixaAtualDisp').textContent = fmt(CAIXA_BASE);
-// Load all data from Sheets on startup
-loadAllDataFromSheets();
-initMonthSystem();
-renderSquad(1);
-renderSquad(2);
-renderNexus();
-renderHub();
-renderRH();
-renderFixas();
-renderReceber();
-loadFromSheets();
+
+(async function initApp(){
+  // 1. Tenta sincronizar com o Sheets primeiro (única fonte: av_months)
+  await loadAllDataFromSheets();
+  // 2. Se ainda não existir nenhum mês (primeira vez), migra dados antigos do localStorage
+  initMonthSystem();
+  // 3. Renderiza tudo com o estado final e correto
+  renderSquad(1);
+  renderSquad(2);
+  renderNexus();
+  renderHub();
+  renderRH();
+  renderFixas();
+  renderReceber();
+  renderAll();
+  renderMonthTabs();
+  document.getElementById('monthBadge').textContent = getActiveMonth().toUpperCase();
+  document.getElementById('caixaAtualDisp').textContent = fmt(CAIXA_BASE);
+  updateKPIs();
+})();
 </script>
 
 <!-- LOGIN SCREEN -->
