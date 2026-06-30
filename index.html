@@ -246,8 +246,22 @@
       </div>
     </div>
 
-    <!-- MONTH TABS -->
-    <div id="monthTabsBar" style="background:var(--bg2);border-bottom:1px solid var(--bd);padding:0 26px;display:flex;align-items:center;gap:4px;overflow-x:auto;min-height:42px">
+    <!-- MONTH SELECTOR + DATE RANGE -->
+    <div style="background:var(--bg2);border-bottom:1px solid var(--bd);padding:10px 26px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:10px;color:var(--tx3);letter-spacing:1px;text-transform:uppercase;font-weight:700">Mês</span>
+        <select id="monthSelector" onchange="loadMonthData(this.value)" style="background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:6px 12px;font-size:12px;color:var(--or);font-family:system-ui;font-weight:700;outline:none;cursor:pointer">
+        </select>
+      </div>
+      <div style="width:1px;height:20px;background:var(--bd)"></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:10px;color:var(--tx3);letter-spacing:1px;text-transform:uppercase;font-weight:700">Período</span>
+        <input type="date" id="filtroDataIni" onchange="aplicarFiltroPeriodo()" style="background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:6px 10px;font-size:11px;color:var(--tx);font-family:system-ui;outline:none">
+        <span style="color:var(--tx3);font-size:11px">até</span>
+        <input type="date" id="filtroDataFim" onchange="aplicarFiltroPeriodo()" style="background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:6px 10px;font-size:11px;color:var(--tx);font-family:system-ui;outline:none">
+        <button onclick="limparFiltroPeriodo()" id="btnLimparFiltro" style="display:none;background:none;border:1px solid var(--bd);border-radius:7px;padding:6px 10px;font-size:11px;color:var(--tx3);font-family:system-ui;cursor:pointer">✕ Limpar</button>
+      </div>
+      <div id="periodoAtivoLabel" style="display:none;font-size:11px;color:var(--or);font-weight:600;margin-left:auto"></div>
     </div>
 
 
@@ -1119,7 +1133,7 @@ function updateKPIs(){
   let pos=0, neg=0;
   entries.forEach(e=>{ if(e.tipo==='entrada') pos+=e.val; else neg+=e.val; });
 
-  // Saldo bruto = caixa + entradas - saídas
+  // Saldo bruto = caixa + entradas - saídas (sempre o mês completo, não filtrado)
   const saldo = CAIXA_BASE + pos - neg;
   document.getElementById('k-saldo').textContent = fmt(saldo);
 
@@ -1187,16 +1201,36 @@ function renderEntries(){
     dash.innerHTML='<div class="empty">Nenhum lançamento.</div>';
     return;
   }
-  const html=arr=>arr.map(e=>`
-    <div class="eitem">
+  const html=arr=>arr.map(e=>{
+    let emPeriodo = true;
+    if(filtroAtivo){
+      const d = parseDataBR(e.date);
+      emPeriodo = d ? (d >= filtroAtivo.ini && d <= filtroAtivo.fim) : false;
+    }
+    const dim = filtroAtivo && !emPeriodo ? 'opacity:0.35' : '';
+    const highlight = filtroAtivo && emPeriodo ? 'background:var(--or2);border-radius:6px;padding-left:8px;padding-right:8px' : '';
+    return `
+    <div class="eitem" style="${dim};${highlight}">
       <div><div class="edesc">${e.desc}</div><div class="emeta">${e.date||''} · <span class="pill ${e.tipo==='entrada'?'gr':'rd'}">${e.tipo}</span> · ${e.cat||''}</div></div>
       <div style="display:flex;align-items:center;gap:10px">
         <div class="${e.tipo==='entrada'?'epos':'eneg'}">${e.tipo==='entrada'?'+':'-'}${fmt(e.val)}</div>
         <button class="rm-btn" onclick="removeEntry(${e.id})">✕</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   full.innerHTML=html(entries);
   dash.innerHTML=html(entries.slice(0,6));
+
+  // Se há filtro, mostra resumo do período no topo da lista completa
+  if(filtroAtivo){
+    const filtradas = getEntriesFiltradas();
+    const posF = filtradas.filter(e=>e.tipo==='entrada').reduce((a,e)=>a+e.val,0);
+    const negF = filtradas.filter(e=>e.tipo==='saida').reduce((a,e)=>a+e.val,0);
+    full.innerHTML = `<div style="background:var(--or2);border:1px solid var(--or3);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px">
+      <div style="font-weight:700;color:var(--or);margin-bottom:4px">📅 Resumo do período selecionado</div>
+      <div style="color:var(--tx2)">${filtradas.length} lançamento${filtradas.length!==1?'s':''} · Entradas: <span style="color:var(--gr);font-weight:600">${fmt(posF)}</span> · Saídas: <span style="color:var(--rd);font-weight:600">${fmt(negF)}</span></div>
+    </div>` + full.innerHTML;
+  }
 }
 
 // ── EXPORT ────────────────────────────────────────────
@@ -1588,30 +1622,38 @@ function loadMonthData(monthName){
   updateKPIs();
 }
 
+const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+function ensureFutureMonthsExist(){
+  // Garante que existam placeholders (vazios, sem dados ainda) para os meses futuros no seletor,
+  // mas só CRIA dados reais quando o usuário realmente vira pra aquele mês.
+  // Aqui só populamos o dropdown com base no mês ativo + meses já criados.
+}
+
+function getOrderedMonthKeys(){
+  const months = getAllMonths();
+  const keys = Object.keys(months);
+  // Ordena cronologicamente baseado em MONTH_NAMES + ano
+  return keys.sort((a,b)=>{
+    const [ma,ya] = a.split(' ');
+    const [mb,yb] = b.split(' ');
+    const ia = MONTH_NAMES.indexOf(ma), ib = MONTH_NAMES.indexOf(mb);
+    if(ya !== yb) return parseInt(ya) - parseInt(yb);
+    return ia - ib;
+  });
+}
+
 function renderMonthTabs(){
   const months = getAllMonths();
   const active = getActiveMonth();
-  const bar = document.getElementById('monthTabsBar');
-  const keys = Object.keys(months);
+  const sel = document.getElementById('monthSelector');
+  if(!sel) return;
 
-  bar.innerHTML = keys.map(m => `
-    <button onclick="loadMonthData('${m}')" style="
-      padding:8px 16px;
-      border:none;
-      border-bottom:2px solid ${m===active?'var(--or)':'transparent'};
-      background:none;
-      color:${m===active?'var(--or)':'var(--tx3)'};
-      font-family:system-ui;
-      font-size:12px;
-      font-weight:${m===active?'700':'500'};
-      cursor:pointer;
-      white-space:nowrap;
-      transition:all .15s;
-    ">${m}</button>
-  `).join('');
+  const keys = getOrderedMonthKeys();
+  sel.innerHTML = keys.map(m => `<option value="${m}" ${m===active?'selected':''}>${m}</option>`).join('');
 
   if(keys.length === 0){
-    bar.innerHTML = '<span style="font-size:11px;color:var(--tx3);padding:0 4px">Nenhum mês cadastrado</span>';
+    sel.innerHTML = '<option>Nenhum mês cadastrado</option>';
   }
 }
 
@@ -1903,6 +1945,64 @@ function toggleCancelou(key, chk, squadN, type){
   else if(type==='nexus') renderNexus();
   else if(type==='hub') renderHub();
   showToast(chk.checked ? 'Cliente marcado como cancelado' : 'Cancelamento removido', chk.checked?'er':'ok');
+}
+
+
+// ── FILTRO DE PERÍODO ─────────────────────────────────
+let filtroAtivo = null; // {ini: Date, fim: Date}
+
+function parseDataBR(dateStr){
+  // dateStr formato "DD/MM" -> assume ano do mês ativo
+  if(!dateStr) return null;
+  const parts = dateStr.split('/');
+  if(parts.length < 2) return null;
+  const dia = parseInt(parts[0]);
+  const mes = parseInt(parts[1]) - 1;
+  const anoMatch = getActiveMonth().match(/(\d{4})/);
+  const ano = anoMatch ? parseInt(anoMatch[1]) : new Date().getFullYear();
+  return new Date(ano, mes, dia);
+}
+
+function aplicarFiltroPeriodo(){
+  const iniStr = document.getElementById('filtroDataIni').value;
+  const fimStr = document.getElementById('filtroDataFim').value;
+  if(!iniStr || !fimStr){ return; }
+
+  const ini = new Date(iniStr + 'T00:00:00');
+  const fim = new Date(fimStr + 'T23:59:59');
+
+  if(ini > fim){ showToast('Data inicial deve ser antes da final','er'); return; }
+
+  filtroAtivo = { ini, fim };
+
+  const label = document.getElementById('periodoAtivoLabel');
+  label.style.display = 'block';
+  label.textContent = `📅 Filtrando: ${ini.toLocaleDateString('pt-BR')} até ${fim.toLocaleDateString('pt-BR')}`;
+  document.getElementById('btnLimparFiltro').style.display = 'inline-block';
+
+  updateKPIs();
+  renderEntries();
+  showToast('Filtro de período aplicado');
+}
+
+function limparFiltroPeriodo(){
+  filtroAtivo = null;
+  document.getElementById('filtroDataIni').value = '';
+  document.getElementById('filtroDataFim').value = '';
+  document.getElementById('periodoAtivoLabel').style.display = 'none';
+  document.getElementById('btnLimparFiltro').style.display = 'none';
+  updateKPIs();
+  renderEntries();
+  showToast('Filtro removido — mostrando mês completo');
+}
+
+function getEntriesFiltradas(){
+  if(!filtroAtivo) return entries;
+  return entries.filter(e => {
+    const d = parseDataBR(e.date);
+    if(!d) return true;
+    return d >= filtroAtivo.ini && d <= filtroAtivo.fim;
+  });
 }
 
 // ── MOBILE MENU ──────────────────────────────────────
