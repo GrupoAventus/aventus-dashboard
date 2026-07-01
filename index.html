@@ -717,22 +717,29 @@ function saveLocal(key,val){
 }
 
 async function loadAllDataFromSheets(){
-  try {
-    const res = await fetch('/sheets?action=getData');
-    const d = await res.json();
-    if(!d.ok) return;
-    const data = d.data;
+  const res = await fetch('/sheets?action=getData');
+  if(!res.ok) throw new Error('Sheets HTTP ' + res.status);
+  const text = await res.text();
+  // Garante que é JSON válido (não HTML de erro)
+  if(text.trim().startsWith('<')) throw new Error('Sheets retornou HTML em vez de JSON');
+  const d = JSON.parse(text);
+  if(!d.ok) throw new Error('Sheets respondeu ok:false');
+  const data = d.data;
 
-    // Única fonte de verdade: av_months + av_active_month
-    if(data['av_months'] !== undefined){
-      localStorage.setItem('av_months', JSON.stringify(data['av_months']));
-    }
-    if(data['av_active_month'] !== undefined){
-      localStorage.setItem('av_active_month', JSON.stringify(data['av_active_month']).replace(/^"|"$/g,''));
-    }
+  // Atualiza localStorage com dados do Sheets (fonte de verdade)
+  if(data['av_months'] !== undefined){
+    localStorage.setItem('av_months', JSON.stringify(data['av_months']));
+  }
+  if(data['av_active_month'] !== undefined){
+    localStorage.setItem('av_active_month', String(data['av_active_month']));
+  }
 
-    // Carrega o mês ativo a partir de av_months (não de chaves antigas)
-    const months = getAllMonths();
+  // Se Sheets ainda não tem av_months (primeira vez), inicializa
+  const months = getAllMonths();
+  if(Object.keys(months).length === 0){
+    initMonthSystem();
+  } else {
+    // Carrega o mês ativo
     const active = getActiveMonth();
     const monthData = months[active];
     if(monthData){
@@ -748,16 +755,15 @@ async function loadAllDataFromSheets(){
       CAIXA_BASE = monthData.caixa || CAIXA_BASE;
       META = monthData.meta || META;
     }
+  }
 
-    // Re-render everything
-    renderAll();
-    renderSquad(1); renderSquad(2); renderNexus(); renderHub(); renderRH(); renderFixas(); renderReceber();
-    renderMonthTabs();
-    document.getElementById('monthBadge').textContent = active.toUpperCase();
-    document.getElementById('caixaAtualDisp').textContent = fmt(CAIXA_BASE);
-    updateKPIs();
-    showToast('Dados sincronizados do Sheets');
-  } catch(e){ console.log('Load data error:',e); }
+  // Re-render
+  renderAll();
+  renderSquad(1); renderSquad(2); renderNexus(); renderHub(); renderRH(); renderFixas(); renderReceber();
+  renderMonthTabs();
+  document.getElementById('monthBadge').textContent = getActiveMonth().toUpperCase();
+  document.getElementById('caixaAtualDisp').textContent = fmt(CAIXA_BASE);
+  updateKPIs();
 }
 
 // ── NAV ───────────────────────────────────────────────
@@ -1670,22 +1676,22 @@ function showViradaMes(){
   document.getElementById('modalVirada').style.display = 'flex';
 }
 
-function confirmarVirada(){
+async function confirmarVirada(){
   const novoMes = document.getElementById('viraNovoMes').value.trim();
   if(!novoMes){ showToast('Digite o nome do próximo mês','er'); return; }
 
   const months = getAllMonths();
   if(months[novoMes]){ showToast('Esse mês já existe!','er'); return; }
 
-  // Save current month first (enquanto av_active_month ainda aponta pro mês atual)
+  // 1. Salva o mês atual no localStorage primeiro
   saveCurrentMonthData();
 
-  // Calculate novo caixa
+  // 2. Calcula novo caixa
   let pos=0, neg=0;
   entries.forEach(e=>{ if(e.tipo==='entrada') pos+=e.val; else neg+=e.val; });
   const novoCaixa = CAIXA_BASE + pos - neg;
 
-  // Remove cancelados dos squads/nexus/hub
+  // 3. Remove cancelados
   const filterCancelados = (clients, prefix) => clients.filter(c => {
     const st = renovState[prefix+'_'+c.id];
     return !(st && st.cancelou);
@@ -1695,11 +1701,9 @@ function confirmarVirada(){
   const novoSquad2 = filterCancelados(JSON.parse(JSON.stringify(squad2)), 's2');
   const novoNexus = filterCancelados(JSON.parse(JSON.stringify(nexusClients)), 'nx');
   const novoHub = filterCancelados(JSON.parse(JSON.stringify(hubClients)), 'hub');
-
-  // Resetar fixas (desmarcar pagas)
   const novasFixas = JSON.parse(JSON.stringify(fixas)).map(f=>({...f, pago:false}));
 
-  // Criar novo mês — releitura de months (que já tem o mês atual salvo por saveCurrentMonthData)
+  // 4. Cria novo mês no objeto
   const monthsAtualizado = getAllMonths();
   const novoMeta = parseFloat(document.getElementById('viraNovoMeta').value) || META;
   monthsAtualizado[novoMes] = {
@@ -1716,19 +1720,25 @@ function confirmarVirada(){
     meta: novoMeta
   };
 
+  // 5. Salva no localStorage
   localStorage.setItem('av_months', JSON.stringify(monthsAtualizado));
+  localStorage.setItem('av_active_month', novoMes);
 
-  // Sync to Sheets
-  fetch('/sheets', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({action:'saveData', key:'av_months', value:monthsAtualizado})
-  }).catch(e=>console.log(e));
+  // 6. Salva no Sheets e AGUARDA terminar antes de continuar
+  try {
+    await fetch('/sheets', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'saveData', key:'av_months', value:monthsAtualizado})
+    });
+    await fetch('/sheets', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'saveData', key:'av_active_month', value:novoMes})
+    });
+  } catch(e){ console.log('Sheets sync error:', e); }
 
-  // Fechar modal
-  document.getElementById('modalVirada').style.display = 'none';
-
-  // Agora sim: trocar o mês ativo e carregar o novo (sem re-salvar por cima)
+  // 7. Atualiza variáveis em memória
   entries = [];
   squad1 = novoSquad1;
   squad2 = novoSquad2;
@@ -1741,8 +1751,9 @@ function confirmarVirada(){
   CAIXA_BASE = novoCaixa;
   META = novoMeta;
   localStorage.setItem('av_meta', META);
-  localStorage.setItem('av_active_month', novoMes);
 
+  // 8. Fecha modal e renderiza
+  document.getElementById('modalVirada').style.display = 'none';
   renderAll();
   renderSquad(1); renderSquad(2); renderNexus(); renderHub();
   renderFixas(); renderReceber(); renderRH();
@@ -1751,7 +1762,7 @@ function confirmarVirada(){
   renderMonthTabs();
   updateKPIs();
 
-  showToast('✓ ' + novoMes + ' criado! Bem-vindo ao novo mês.');
+  showToast('✓ ' + novoMes + ' criado!');
 }
 
 function deleteMonth(monthName){
@@ -1950,27 +1961,21 @@ function salvarCaixa(){
 
 // ── INIT ──────────────────────────────────────────────
 initCalendar();
-// Init caixa display
 document.getElementById('caixaAtualDisp').textContent = fmt(CAIXA_BASE);
 
 (async function initApp(){
-  // 1. Tenta sincronizar com o Sheets primeiro (única fonte: av_months)
-  await loadAllDataFromSheets();
-  // 2. Se ainda não existir nenhum mês (primeira vez), migra dados antigos do localStorage
-  initMonthSystem();
-  // 3. Renderiza tudo com o estado final e correto
-  renderSquad(1);
-  renderSquad(2);
-  renderNexus();
-  renderHub();
-  renderRH();
-  renderFixas();
-  renderReceber();
-  renderAll();
-  renderMonthTabs();
-  document.getElementById('monthBadge').textContent = getActiveMonth().toUpperCase();
-  document.getElementById('caixaAtualDisp').textContent = fmt(CAIXA_BASE);
-  updateKPIs();
+  try {
+    await loadAllDataFromSheets();
+  } catch(e) {
+    // Sheets falhou — usa localStorage como fallback
+    initMonthSystem();
+    renderSquad(1); renderSquad(2); renderNexus(); renderHub();
+    renderRH(); renderFixas(); renderReceber(); renderAll();
+    renderMonthTabs();
+    document.getElementById('monthBadge').textContent = getActiveMonth().toUpperCase();
+    document.getElementById('caixaAtualDisp').textContent = fmt(CAIXA_BASE);
+    updateKPIs();
+  }
 })();
 </script>
 
