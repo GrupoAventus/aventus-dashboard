@@ -689,22 +689,29 @@ async function loadAllDataFromSheets(){
   const active = data['av_active_month'] ? String(data['av_active_month']) : 'Agosto';
   activeMonthName = active;
   
-  // Lista de meses: lê av_month_keys ou tenta descobrir pelas chaves mes_*
-  if(data['av_month_keys'] && Array.isArray(data['av_month_keys'])){
+  // Lista de meses: lê av_month_keys ou tenta descobrir pelas chaves mes_* ou av_months antigo
+  if(data['av_month_keys'] && Array.isArray(data['av_month_keys']) && data['av_month_keys'].length > 0){
     allMonths = {};
     data['av_month_keys'].forEach(m => { allMonths[m] = true; });
   } else {
-    // Fallback: descobre meses pelas chaves mes_* no Sheets
     allMonths = {};
+    // Tenta chaves mes_*
     Object.keys(data).forEach(k => {
-      if(k.startsWith('mes_') && data[k] && typeof data[k] === 'object'){
-        // Converte chave mes_Junho_2026 -> Junho 2026
+      if(k.startsWith('mes_') && data[k] && typeof data[k] === 'object' && data[k].entries !== undefined){
         const name = k.replace('mes_','').replace(/_/g,' ');
         allMonths[name] = true;
       }
     });
-    // Se ainda vazio, usa o mês ativo como único
+    // Tenta av_months antigo
+    if(Object.keys(allMonths).length === 0 && data['av_months'] && typeof data['av_months'] === 'object'){
+      Object.keys(data['av_months']).forEach(m => { allMonths[m] = true; });
+    }
+    // Último fallback: usa o mês ativo
     if(Object.keys(allMonths).length === 0) allMonths[active] = true;
+    // Salva av_month_keys no Sheets para próxima vez
+    const keysList = Object.keys(allMonths);
+    fetch('/sheets', {method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'saveData',key:'av_month_keys',value:keysList})}).catch(e=>console.log(e));
   }
 
   // Carrega dados do mês ativo pela chave separada
