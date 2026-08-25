@@ -1965,17 +1965,86 @@ document.getElementById('caixaAtualDisp').textContent = fmt(CAIXA_BASE);
 
 (async function initApp(){
   try {
-    await loadAllDataFromSheets();
-  } catch(e) {
-    // Sheets falhou — usa localStorage como fallback
+    const res = await fetch('/sheets?action=getData');
+    const text = await res.text();
+    if(text.trim().startsWith('<')) throw new Error('HTML response');
+    const d = JSON.parse(text);
+    if(!d.ok) throw new Error('Sheets error');
+    const data = d.data;
+
+    // Tenta carregar av_months do Sheets
+    let months = {};
+    if(data['av_months'] && typeof data['av_months'] === 'object' && Object.keys(data['av_months']).length > 0){
+      months = data['av_months'];
+    }
+
+    // Se av_months está vazio ou incompleto, reconstrói a partir das chaves antigas
+    const activeMonth = data['av_active_month'] ? String(data['av_active_month']) : 'Agosto';
+    if(!months[activeMonth] || !months[activeMonth].squad1 || months[activeMonth].squad1.length === 0){
+      // Monta o mês ativo com as chaves antigas (fonte mais atualizada)
+      const oldSquad1 = data['av_squad1'] || [];
+      const oldSquad2 = data['av_squad2'] || [];
+      const oldNexus = data['av_nexus'] || [];
+      const oldHub = data['av_hub'] || [];
+      const oldFixas = data['av_fixas2'] || [];
+      const oldReceber = data['av_receber'] || [];
+      const oldRenov = data['av_renov'] || {};
+      const oldRh = data['av_rh'] || [];
+      const oldCaixa = parseFloat(data['av_caixa']) || 22704;
+      const oldEntries = data['av_entries_cache'] || [];
+
+      months[activeMonth] = {
+        entries: oldEntries,
+        squad1: oldSquad1,
+        squad2: oldSquad2,
+        nexusClients: oldNexus,
+        hubClients: oldHub,
+        fixas: oldFixas,
+        receber: oldReceber,
+        renovState: oldRenov,
+        rhFuncs: oldRh,
+        caixa: oldCaixa,
+        meta: 50000
+      };
+
+      // Salva o av_months reconstruído no Sheets
+      fetch('/sheets', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'saveData', key:'av_months', value:months})
+      }).catch(e=>console.log(e));
+    }
+
+    // Salva localmente e carrega o mês ativo
+    localStorage.setItem('av_months', JSON.stringify(months));
+    localStorage.setItem('av_active_month', activeMonth);
+
+    const monthData = months[activeMonth];
+    if(monthData){
+      entries = monthData.entries || [];
+      squad1 = monthData.squad1 || squad1;
+      squad2 = monthData.squad2 || squad2;
+      nexusClients = monthData.nexusClients || nexusClients;
+      hubClients = monthData.hubClients || hubClients;
+      fixas = monthData.fixas || fixas;
+      receber = monthData.receber || receber;
+      renovState = monthData.renovState || {};
+      rhFuncs = monthData.rhFuncs || rhFuncs;
+      CAIXA_BASE = monthData.caixa || CAIXA_BASE;
+      META = monthData.meta || META;
+    }
+
+  } catch(e){
+    console.log('Sheets error, usando localStorage:', e.message);
     initMonthSystem();
-    renderSquad(1); renderSquad(2); renderNexus(); renderHub();
-    renderRH(); renderFixas(); renderReceber(); renderAll();
-    renderMonthTabs();
-    document.getElementById('monthBadge').textContent = getActiveMonth().toUpperCase();
-    document.getElementById('caixaAtualDisp').textContent = fmt(CAIXA_BASE);
-    updateKPIs();
   }
+
+  renderSquad(1); renderSquad(2); renderNexus(); renderHub();
+  renderRH(); renderFixas(); renderReceber(); renderAll();
+  renderMonthTabs();
+  document.getElementById('monthBadge').textContent = getActiveMonth().toUpperCase();
+  document.getElementById('caixaAtualDisp').textContent = fmt(CAIXA_BASE);
+  updateKPIs();
 })();
 </script>
 
