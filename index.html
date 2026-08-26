@@ -1568,29 +1568,35 @@ function getActiveMonth(){
   return localStorage.getItem('av_active_month') || 'Junho 2026';
 }
 
+function monthKey(name){ return 'mes_' + name.replace(/[^a-zA-Z0-9]/g,'_'); }
+
 function saveCurrentMonthData(){
   const months = getAllMonths();
   const active = getActiveMonth();
-  months[active] = {
-    entries: entries,
-    squad1: squad1,
-    squad2: squad2,
-    nexusClients: nexusClients,
-    hubClients: hubClients,
-    fixas: fixas,
-    receber: receber,
-    renovState: renovState,
-    rhFuncs: rhFuncs,
-    caixa: CAIXA_BASE,
-    meta: META
+  const mesData = {
+    entries, squad1, squad2, nexusClients, hubClients,
+    fixas, receber, renovState, rhFuncs,
+    caixa: CAIXA_BASE, meta: META
   };
+  months[active] = mesData;
   localStorage.setItem('av_months', JSON.stringify(months));
-  // Sync to Sheets
+
+  // Salva mês em chave SEPARADA no Sheets (evita célula gigante)
   fetch('/sheets', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({action:'saveData', key:'av_months', value:months})
+    body:JSON.stringify({action:'saveData', key:monthKey(active), value:mesData})
   }).catch(e=>console.log(e));
+
+  // Mantém av_months atualizado para compatibilidade (só se pequeno o suficiente)
+  const monthsJson = JSON.stringify(months);
+  if(monthsJson.length < 40000){
+    fetch('/sheets', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'saveData', key:'av_months', value:months})
+    }).catch(e=>console.log(e));
+  }
 }
 
 function loadMonthData(monthName){
