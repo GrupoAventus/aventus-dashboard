@@ -685,9 +685,13 @@ async function loadAllDataFromSheets(){
   if(!d.ok) throw new Error('Sheets respondeu ok:false');
   const data = d.data;
 
-  // Descobre mês ativo e lista de meses
-  const active = data['av_active_month'] ? String(data['av_active_month']) : 'Agosto';
+  // Parse mês ativo (pode vir com aspas extras do JSON)
+  let activeRaw = data['av_active_month'] || 'Agosto';
+  if(typeof activeRaw === 'string') activeRaw = activeRaw.replace(/^"|"$/g, '');
+  const active = activeRaw;
   activeMonthName = active;
+  console.log('Mês ativo:', active);
+  console.log('Chaves no Sheets:', Object.keys(data));
   
   // Lista de meses: lê av_month_keys ou tenta descobrir pelas chaves mes_* ou av_months antigo
   if(data['av_month_keys'] && Array.isArray(data['av_month_keys']) && data['av_month_keys'].length > 0){
