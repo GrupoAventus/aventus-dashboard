@@ -726,35 +726,71 @@ async function loadAllDataFromSheets(){
   if(!d.ok) throw new Error('Sheets respondeu ok:false');
   const data = d.data;
 
-  // Atualiza localStorage com dados do Sheets (fonte de verdade)
-  if(data['av_months'] !== undefined){
-    localStorage.setItem('av_months', JSON.stringify(data['av_months']));
-  }
+  // ── NOVA LÓGICA: nunca sobrescrever localStorage com av_months do Sheets ──
+  // Cada mês fica em chave separada (mes_NomeMes). Montamos av_months a partir delas.
+  // av_months do Sheets pode estar desatualizado (limite 40KB antigo) — ignoramos.
+
+  // 1. Detecta mês ativo (do Sheets se tiver, senão mantém o localStorage)
   if(data['av_active_month'] !== undefined){
-    localStorage.setItem('av_active_month', String(data['av_active_month']));
+    const sheetActive = String(data['av_active_month']);
+    const localActive = localStorage.getItem('av_active_month');
+    // Só atualiza se o localStorage não tiver nenhum mês definido
+    if(!localActive) localStorage.setItem('av_active_month', sheetActive);
   }
 
-  // Se Sheets ainda não tem av_months (primeira vez), inicializa
+  // 2. Reconstrói av_months a partir das chaves separadas mes_* do Sheets
+  const monthsFromSheets = {};
+  const sheetKeys = Object.keys(data);
+  for(const k of sheetKeys){
+    if(k.startsWith('mes_')){
+      // Converte chave de volta: mes_Outubro_2026 → Outubro 2026
+      const nomeMes = k.replace(/^mes_/,'').replace(/_/g,' ').trim();
+      if(data[k] && typeof data[k] === 'object' && data[k].entries !== undefined){
+        monthsFromSheets[nomeMes] = data[k];
+      }
+    }
+  }
+
+  // 3. Merge: para cada mês do Sheets, atualiza localStorage APENAS se
+  //    o localStorage não tiver esse mês com entries preenchidas
+  if(Object.keys(monthsFromSheets).length > 0){
+    const localMonths = getAllMonths();
+    let changed = false;
+    for(const [nome, mesData] of Object.entries(monthsFromSheets)){
+      const localMes = localMonths[nome];
+      // Substitui se: mês não existe no local, OU local tem entries vazio e Sheets tem entries
+      const localVazio = !localMes || (localMes.entries || []).length === 0;
+      const sheetsTemDados = (mesData.entries || []).length > 0;
+      if(!localMes || (localVazio && sheetsTemDados)){
+        localMonths[nome] = mesData;
+        changed = true;
+      }
+    }
+    if(changed) localStorage.setItem('av_months', JSON.stringify(localMonths));
+  }
+
+  // 4. Se ainda sem meses, inicializa do zero
   const months = getAllMonths();
   if(Object.keys(months).length === 0){
     initMonthSystem();
-  } else {
-    // Carrega o mês ativo
-    const active = getActiveMonth();
-    const monthData = months[active];
-    if(monthData){
-      entries = monthData.entries || [];
-      squad1 = monthData.squad1 || squad1;
-      squad2 = monthData.squad2 || squad2;
-      nexusClients = monthData.nexusClients || nexusClients;
-      hubClients = monthData.hubClients || hubClients;
-      fixas = monthData.fixas || fixas;
-      receber = monthData.receber || receber;
-      renovState = monthData.renovState || {};
-      rhFuncs = monthData.rhFuncs || rhFuncs;
-      CAIXA_BASE = monthData.caixa || CAIXA_BASE;
-      META = monthData.meta || META;
-    }
+    return;
+  }
+
+  // 5. Carrega o mês ativo
+  const active = getActiveMonth();
+  const monthData = months[active];
+  if(monthData){
+    entries = monthData.entries || [];
+    squad1 = monthData.squad1 || squad1;
+    squad2 = monthData.squad2 || squad2;
+    nexusClients = monthData.nexusClients || nexusClients;
+    hubClients = monthData.hubClients || hubClients;
+    fixas = monthData.fixas || fixas;
+    receber = monthData.receber || receber;
+    renovState = monthData.renovState || {};
+    rhFuncs = monthData.rhFuncs || rhFuncs;
+    CAIXA_BASE = monthData.caixa || CAIXA_BASE;
+    META = monthData.meta || META;
   }
 
   // Re-render
@@ -1581,22 +1617,22 @@ function saveCurrentMonthData(){
   months[active] = mesData;
   localStorage.setItem('av_months', JSON.stringify(months));
 
-  // Salva mês em chave SEPARADA no Sheets (evita célula gigante)
+  // SEMPRE salva mês em chave separada no Sheets — sem limite de tamanho
+  // Formato: mes_Outubro_2026, mes_Setembro_2026, etc.
   fetch('/sheets', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({action:'saveData', key:monthKey(active), value:mesData})
   }).catch(e=>console.log(e));
 
-  // Mantém av_months atualizado para compatibilidade (só se pequeno o suficiente)
-  const monthsJson = JSON.stringify(months);
-  if(monthsJson.length < 40000){
-    fetch('/sheets', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'saveData', key:'av_months', value:months})
-    }).catch(e=>console.log(e));
-  }
+  // Salva av_active_month para referência
+  fetch('/sheets', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'saveData', key:'av_active_month', value:active})
+  }).catch(e=>console.log(e));
+
+  // REMOVIDO: não salva mais av_months no Sheets (limite 40KB causava dados antigos)
 }
 
 function loadMonthData(monthName){
@@ -1731,11 +1767,20 @@ async function confirmarVirada(){
   localStorage.setItem('av_active_month', novoMes);
 
   // 6. Salva no Sheets e AGUARDA terminar antes de continuar
+  // Salva cada mês em chave separada (nunca av_months — limite 40KB)
   try {
+    // Salva o mês atual (que acabou de ser fechado)
+    const mesAtualNome = getActiveMonth(); // ainda é o mês antigo aqui
     await fetch('/sheets', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'saveData', key:'av_months', value:monthsAtualizado})
+      body:JSON.stringify({action:'saveData', key:monthKey(mesAtualNome), value:monthsAtualizado[mesAtualNome]})
+    });
+    // Salva o novo mês
+    await fetch('/sheets', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'saveData', key:monthKey(novoMes), value:monthsAtualizado[novoMes]})
     });
     await fetch('/sheets', {
       method:'POST',
@@ -1782,11 +1827,11 @@ function deleteMonth(monthName){
   delete months[monthName];
   localStorage.setItem('av_months', JSON.stringify(months));
 
-  // Sync to Sheets
+  // Marca mês como deletado no Sheets (sobrescreve com null para limpar)
   fetch('/sheets', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({action:'saveData', key:'av_months', value:months})
+    body:JSON.stringify({action:'saveData', key:monthKey(monthName), value:null})
   }).catch(e=>console.log(e));
 
   // Se o mês apagado era o ativo, carrega outro
@@ -1836,11 +1881,11 @@ function initMonthSystem(){
     localStorage.setItem('av_months', JSON.stringify(months));
     localStorage.setItem('av_active_month', 'Junho 2026');
 
-    // Sync to Sheets
+    // Sync to Sheets — salva em chave separada
     fetch('/sheets', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'saveData', key:'av_months', value:months})
+      body:JSON.stringify({action:'saveData', key:'mes_Junho_2026', value:junho})
     }).catch(e=>console.log(e));
 
     console.log('Migração concluída! Junho 2026 criado com:', {
