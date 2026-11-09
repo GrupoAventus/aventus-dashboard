@@ -170,7 +170,8 @@
     @media(max-width:860px){
       .app{grid-template-columns:1fr}.sidebar{display:none}
       .hamburger{display:block}
-      .g4,.g-kpi{grid-template-columns:repeat(2,1fr)}
+      .g4{grid-template-columns:repeat(2,1fr)}
+      .g-kpi{grid-template-columns:1fr 1fr}
       .g3{grid-template-columns:repeat(2,1fr)}
       .form-row{grid-template-columns:1fr 1fr}
       .topbar-right .date-badge{display:none}
@@ -272,11 +273,20 @@
       <div class="page active" id="page-dashboard">
 
         <div class="sec-title">KPIs Principais</div>
-        <div class="g-kpi" style="grid-template-columns:1.5fr 1fr">
+        <div class="g-kpi" style="grid-template-columns:1.5fr 1fr 1fr">
           <div class="card ok">
             <div class="lbl">Saldo Bruto</div>
             <div class="val gr" id="k-saldo">R$ 0,00</div>
             <div class="sub">Caixa + entradas − saídas</div>
+          </div>
+          <div class="card" id="card-resultado">
+            <div class="lbl">Resultado do Mês</div>
+            <div class="val sm" id="k-resultado">R$ 0,00</div>
+            <div class="sub" id="k-resultado-sub" style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+              <span style="color:var(--gr);font-size:11px" id="k-resultado-pos">▲ R$ 0,00</span>
+              <span style="color:var(--tx3);font-size:11px">·</span>
+              <span style="color:var(--rd);font-size:11px" id="k-resultado-neg">▼ R$ 0,00</span>
+            </div>
           </div>
           <div class="card">
             <div class="lbl">Calendário</div>
@@ -1194,6 +1204,19 @@ function updateKPIs(){
   const adsTotal = entries.filter(e=>e.cat==='ADS'&&e.tipo==='saida').reduce((a,e)=>a+e.val,0);
   const adsEl = document.getElementById('k-ads');
   if(adsEl) adsEl.textContent = fmt(adsTotal);
+
+  // Resultado do mês = entradas - saídas (fluxo do período)
+  const resultado = pos - neg;
+  const resEl = document.getElementById('k-resultado');
+  if(resEl){
+    resEl.textContent = (resultado >= 0 ? '' : '-') + fmt(Math.abs(resultado));
+    resEl.style.color = resultado >= 0 ? 'var(--gr)' : 'var(--rd)';
+    document.getElementById('card-resultado').className = 'card ' + (resultado >= 0 ? 'ok' : 'bad');
+  }
+  const rPosEl = document.getElementById('k-resultado-pos');
+  const rNegEl = document.getElementById('k-resultado-neg');
+  if(rPosEl) rPosEl.textContent = '▲ ' + fmt(pos);
+  if(rNegEl) rNegEl.textContent = '▼ ' + fmt(neg);
 
   // Coletado = soma de todas as entradas (meta)
   document.getElementById('k-coletado').textContent = fmt(pos);
