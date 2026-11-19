@@ -1476,6 +1476,10 @@ function updateKPIs(){
   // Coletado = soma de todas as entradas (meta)
   document.getElementById('k-coletado').textContent = fmt(pos);
 
+  // Atualiza nome do mês na meta card (ex: "Novembro 2026" → "Novembro")
+  const metaMesEl = document.getElementById('metaMes');
+  if(metaMesEl) metaMesEl.textContent = getActiveMonth().split(' ')[0];
+
   // Update meta display
   const metaDisp = document.getElementById('metaValDisp');
   if(metaDisp) metaDisp.textContent = fmt(META);
